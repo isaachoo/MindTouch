@@ -27,9 +27,17 @@ npm run build   # regenerates data, type-checks, outputs dist/
 
 One-time setup: repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
-Site URL: `https://isaachoo.github.io/MindTouch/`
+Site URL: `https://isaachoo.github.io/MindTouch/` (the workflow sets `VITE_BASE=/MindTouch/`).
 
-The site is built with `base: '/MindTouch/'`. For a custom domain at the root, build with `VITE_BASE=/`.
+## Deploy (Cloudflare Pages, custom domain)
+
+Connect the repo in Cloudflare Pages with:
+
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Node version: 22 (environment variable `NODE_VERSION=22`)
+
+Default base is `/`, so no extra settings are needed for a custom domain.
 
 ## Updating quotes
 

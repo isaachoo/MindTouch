@@ -2,8 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// GitHub Pages serves the site under /<repo>/ ; override with VITE_BASE if needed.
-const base = process.env.VITE_BASE ?? '/MindTouch/';
+// Root by default (custom domain / Cloudflare Pages). For GitHub Pages project URL set VITE_BASE=/MindTouch/.
+const base = process.env.VITE_BASE ?? '/';
 
 export default defineConfig({
   base,
