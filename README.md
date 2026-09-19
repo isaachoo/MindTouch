@@ -27,7 +27,8 @@ npm run build   # regenerates data, type-checks, outputs dist/
 
 One-time setup: repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
-Site URL: `https://isaachoo.github.io/MindTouch/` (the workflow sets `VITE_BASE=/MindTouch/`).
+The site is served on a custom domain (see `public/CNAME`), so the build uses base `/`.
+To publish at `https://isaachoo.github.io/MindTouch/` instead, set `VITE_BASE=/MindTouch/` in the workflow.
 
 ## Deploy (Cloudflare Pages, custom domain)
 
