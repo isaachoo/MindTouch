@@ -23,7 +23,7 @@ npm run build   # regenerates data, type-checks, outputs dist/
 
 ## Deploy (GitHub Pages)
 
-`.github/workflows/deploy.yml` builds and deploys on every push to `main`.
+`.github/workflows/deploy.yml` builds and deploys on every push to `main` (or the current default branch).
 
 One-time setup: repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
