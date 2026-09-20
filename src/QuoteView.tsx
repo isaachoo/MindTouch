@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchExplanation } from './explain';
+import Thinking, { estimateMs, recordDuration } from './Thinking';
 import type { Category, Quote } from './data';
 
 interface Props {
@@ -23,9 +24,13 @@ export default function QuoteView({ category, quote, onBack }: Props) {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setExplain({ status: 'loading' });
+    const started = performance.now();
     try {
       const text = await fetchExplanation(quote.id, category.id, ctrl.signal);
-      if (!ctrl.signal.aborted) setExplain({ status: 'done', text });
+      if (!ctrl.signal.aborted) {
+        recordDuration(performance.now() - started);
+        setExplain({ status: 'done', text });
+      }
     } catch (err) {
       if (!ctrl.signal.aborted) {
         console.error(err);
@@ -80,13 +85,7 @@ export default function QuoteView({ category, quote, onBack }: Props) {
             多說一點
           </button>
         )}
-        {explain.status === 'loading' && (
-          <div className="explain loading" role="status" aria-live="polite" aria-label="正在思考">
-            <span className="dot" />
-            <span className="dot" />
-            <span className="dot" />
-          </div>
-        )}
+        {explain.status === 'loading' && <Thinking estimate={estimateMs()} />}
         {explain.status === 'done' && (
           <div className="explain" aria-live="polite">
             {explain.text!.split(/\n+/).map((para, i) => (
