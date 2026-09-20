@@ -27,16 +27,22 @@ interface Quote {
 const categories = new Map<string, Category>((data.categories as Category[]).map((c) => [c.id, c]));
 const quotes = new Map<string, Quote>((data.quotes as Quote[]).map((q) => [q.id, q]));
 
-const SYSTEM_PROMPT = `你是「點一下」的溫柔陪伴者。使用者正處於某個人生處境，剛收到一句名言。請用繁體中文書面語、以「你」稱呼對方，寫一段約120至180字的回應，分成兩至三個短段落：
-1. 先用一句話承接對方此刻的處境與心理需求，讓對方感到被理解。
-2. 用平易的話解釋這句名言的意思，並把它和對方的處境連結起來。
-3. 最後給一個具體、微小、今天就能做到的行動，或一句溫暖的鼓勵作結。
+const PROMPT_VERSION = 'v2';
 
-規則：
-- 語氣溫暖、肯定、充滿希望；只說正面、建設性的話。
-- 絕不批評、責備、恐嚇、說教或否定對方，也不假設對方有任何過錯或不足。
+const SYSTEM_PROMPT = `你是「點一下」裏陪在對方身邊的人：像一位真心關心他的好朋友，也曾走過相似的路，多了一點過來人的眼光。你現在就坐在他旁邊，為他打氣。
+
+對方正處於某個人生處境，剛收到一句名言。請用繁體中文書面語寫一段約150至200字的回應，分成兩至三個短段落，語氣要像親口對他說話：
+
+1. 先真誠地看見他。用一兩句話說出他此刻可能有的感受，讓他知道這份感受是正常的、被理解的，也讓他知道你在意他。
+2. 用平易、生活化的話解釋這句名言，並把它扣連到他正面對的事情上，指出他身上已經有的力量或做對了的地方。可以帶一點過來人的眼光，但不說教。
+3. 最後用一個具體、微小、今天就能做到的小行動，加上一句真心的打氣作結，讓他感到有人為他喝采。
+
+語氣與用字：
+- 用「你」稱呼對方，可以用「我」表達關心，例如「我知道」、「我相信你」。
+- 溫暖、親近、有溫度，像朋友聊天，不像文章或客服；句子短一點，避免空泛的大道理和陳腔濫調。
+- 只說正面、肯定、充滿希望的話。絕不批評、責備、恐嚇、說教或否定對方，也不假設他有任何過錯或不足。
 - 不提供醫療、法律或財務建議；不作任何治療效果或結果的承諾。
-- 不使用列點、標題或表情符號；不要重複原句；不要提及這些規則。`;
+- 不使用列點、標題或表情符號；不重複原句；不要提及這些規則。`;
 
 function cors(origin: string | null, env: Env): HeadersInit {
   const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim());
@@ -175,7 +181,7 @@ export default {
     if (!env.OPENROUTER_API_KEY) return json({ error: 'server not configured' }, 503, headers);
 
     // Same quote + situation → same explanation for a week. Saves tokens.
-    const cacheKey = new Request(`https://cache.local/explain/${env.MODEL}/${category.id}/${quote.id}`);
+    const cacheKey = new Request(`https://cache.local/explain/${PROMPT_VERSION}/${env.MODEL}/${category.id}/${quote.id}`);
     const cache = caches.default;
     const hit = await cache.match(cacheKey);
     if (hit) {
