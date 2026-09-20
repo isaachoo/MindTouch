@@ -1,4 +1,5 @@
 import type { Category } from './data';
+import { useInstall } from './useInstall';
 
 interface Props {
   categories: Category[];
@@ -6,6 +7,8 @@ interface Props {
 }
 
 export default function Home({ categories, onPick }: Props) {
+  const install = useInstall();
+
   return (
     <main className="screen home">
       <header className="brand">
@@ -40,6 +43,20 @@ export default function Home({ categories, onPick }: Props) {
       </section>
 
       <p className="footnote">點一下，收一句鼓勵。</p>
+
+      {install.kind === 'prompt' && (
+        <button type="button" className="install" onClick={() => void install.install()}>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          加到主畫面
+        </button>
+      )}
+      {install.kind === 'ios-hint' && (
+        <p className="install-hint">
+          想加到主畫面？在 Safari 按「分享」，再選「加入主畫面」。
+        </p>
+      )}
     </main>
   );
 }

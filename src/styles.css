@@ -175,6 +175,35 @@ body {
   margin: 24px 0 0;
 }
 
+/* ---- install ---- */
+.install {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 18px;
+  border: 1px solid var(--divider);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--accent-deep);
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.install:active {
+  background: var(--accent-soft);
+}
+
+.install-hint {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 12px 0 0;
+}
+
 /* ---- quote screen ---- */
 .topbar {
   display: flex;
