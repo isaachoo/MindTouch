@@ -1,0 +1,12 @@
+name = "mindtouch-explain"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Custom domain for the API. Add it once in the Cloudflare dashboard
+# (Worker → Settings → Domains & Routes → Add → Custom domain), or uncomment:
+# routes = [{ pattern = "api.mt.ohcasi.com", custom_domain = true }]
+
+[vars]
+MODEL = "deepseek/deepseek-v4.1-flash"
+ALLOWED_ORIGINS = "https://mt.ohcasi.com,http://localhost:5173,http://localhost:4173"
+# Secret (set via GitHub Actions or `wrangler secret put`): OPENROUTER_API_KEY

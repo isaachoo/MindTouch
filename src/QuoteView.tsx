@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { fetchExplanation } from './explain';
 import type { Category, Quote } from './data';
 
 interface Props {
@@ -10,6 +11,28 @@ interface Props {
 export default function QuoteView({ category, quote, onBack }: Props) {
   const [showMore, setShowMore] = useState(false);
   const showOriginal = quote.orig.trim() !== quote.zh.trim();
+
+  const [explain, setExplain] = useState<{ status: 'idle' | 'loading' | 'done' | 'error'; text?: string }>({
+    status: 'idle',
+  });
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const askMore = async () => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setExplain({ status: 'loading' });
+    try {
+      const text = await fetchExplanation(quote.id, category.id, ctrl.signal);
+      if (!ctrl.signal.aborted) setExplain({ status: 'done', text });
+    } catch (err) {
+      if (!ctrl.signal.aborted) {
+        console.error(err);
+        setExplain({ status: 'error' });
+      }
+    }
+  };
 
   return (
     <main className="screen quote-screen">
@@ -51,6 +74,34 @@ export default function QuoteView({ category, quote, onBack }: Props) {
             </svg>
           </button>
         </footer>
+
+        {explain.status === 'idle' && (
+          <button type="button" className="tell-more" onClick={() => void askMore()}>
+            多說一點
+          </button>
+        )}
+        {explain.status === 'loading' && (
+          <div className="explain loading" role="status" aria-live="polite" aria-label="正在思考">
+            <span className="dot" />
+            <span className="dot" />
+            <span className="dot" />
+          </div>
+        )}
+        {explain.status === 'done' && (
+          <div className="explain" aria-live="polite">
+            {explain.text!.split(/\n+/).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </div>
+        )}
+        {explain.status === 'error' && (
+          <div className="explain error">
+            <p>暫時未能連接，請稍後再試。</p>
+            <button type="button" className="tell-more" onClick={() => void askMore()}>
+              再試一次
+            </button>
+          </div>
+        )}
 
         {showMore && (
           <dl className="details">
