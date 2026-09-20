@@ -98,6 +98,47 @@ async function explain(quote: Quote, category: Category, env: Env): Promise<stri
   return text;
 }
 
+// GET /health: checks key validity, model availability and a tiny test completion.
+// Never returns the key itself.
+async function health(env: Env): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { model: env.MODEL, keyConfigured: Boolean(env.OPENROUTER_API_KEY) };
+  if (!env.OPENROUTER_API_KEY) return out;
+  const auth = { Authorization: `Bearer ${env.OPENROUTER_API_KEY}` };
+
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/auth/key', { headers: auth });
+    const body = (await r.json()) as { data?: { limit?: number | null; usage?: number; is_free_tier?: boolean } };
+    out.keyCheck = { status: r.status, limit: body.data?.limit ?? null, usage: body.data?.usage, freeTier: body.data?.is_free_tier };
+  } catch (e) {
+    out.keyCheck = { error: String(e) };
+  }
+
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/models');
+    const body = (await r.json()) as { data?: { id: string }[] };
+    const ids = (body.data ?? []).map((m) => m.id);
+    out.modelCheck = {
+      found: ids.includes(env.MODEL),
+      similar: ids.filter((id) => id.startsWith('deepseek/')).slice(0, 15),
+    };
+  } catch (e) {
+    out.modelCheck = { error: String(e) };
+  }
+
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { ...auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: env.MODEL, messages: [{ role: 'user', content: '請只回覆「好」。' }], max_tokens: 5 }),
+    });
+    const text = await r.text();
+    out.testCompletion = { status: r.status, body: text.slice(0, 400) };
+  } catch (e) {
+    out.testCompletion = { error: String(e) };
+  }
+  return out;
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const origin = request.headers.get('Origin');
@@ -105,6 +146,7 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
+    if (url.pathname === '/health' && request.method === 'GET') return json(await health(env), 200, headers);
     if (url.pathname !== '/explain') return json({ error: 'not found' }, 404, headers);
     if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405, headers);
 
@@ -143,7 +185,7 @@ export default {
       return json({ text }, 200, headers);
     } catch (err) {
       console.error(err);
-      return json({ error: 'upstream failed' }, 502, headers);
+      return json({ error: 'upstream failed', detail: String(err).slice(0, 300) }, 502, headers);
     }
   },
 };
