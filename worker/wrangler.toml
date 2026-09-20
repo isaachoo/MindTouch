@@ -7,6 +7,6 @@ compatibility_date = "2026-09-01"
 # routes = [{ pattern = "mt-api.ohcasi.com", custom_domain = true }]
 
 [vars]
-MODEL = "deepseek/deepseek-v4.1-flash"
+MODEL = "deepseek/deepseek-v4-flash-0731"
 ALLOWED_ORIGINS = "https://mt.ohcasi.com,http://localhost:5173,http://localhost:4173"
 # Secret (set via GitHub Actions or `wrangler secret put`): OPENROUTER_API_KEY

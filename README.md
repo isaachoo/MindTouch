@@ -52,7 +52,7 @@ One quote may appear under several categories; it is de-duplicated at build time
 The quote screen has a 多說一點 button that asks an LLM for a short, positive explanation
 linking the quote to the chosen situation. The request goes to a Cloudflare Worker in
 `worker/`, which holds the OpenRouter key as a secret and calls
-`deepseek/deepseek-v4.1-flash` (configurable via `MODEL` in `worker/wrangler.toml`).
+`deepseek/deepseek-v4-flash-0731` (configurable via `MODEL` in `worker/wrangler.toml`).
 Responses are cached per (quote, situation) for 7 days.
 
 Deployment is automatic via `.github/workflows/worker.yml`. It needs three GitHub Actions
