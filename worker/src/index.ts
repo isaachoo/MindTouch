@@ -83,8 +83,11 @@ async function explain(quote: Quote, category: Category, env: Env): Promise<stri
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
       ],
-      max_tokens: 500,
+      max_tokens: 800,
       temperature: 0.7,
+      // Reasoning models spend the token budget on hidden thinking and may return
+      // content: null. This task does not need it.
+      reasoning: { enabled: false },
     }),
   });
 
@@ -92,9 +95,12 @@ async function explain(quote: Quote, category: Category, env: Env): Promise<stri
     const detail = await res.text();
     throw new Error(`OpenRouter ${res.status}: ${detail.slice(0, 300)}`);
   }
-  const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const text = body.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error('Empty completion');
+  const body = (await res.json()) as {
+    choices?: { finish_reason?: string; message?: { content?: string | null } }[];
+  };
+  const choice = body.choices?.[0];
+  const text = choice?.message?.content?.trim();
+  if (!text) throw new Error(`Empty completion (finish_reason=${choice?.finish_reason ?? 'unknown'})`);
   return text;
 }
 
@@ -129,7 +135,12 @@ async function health(env: Env): Promise<Record<string, unknown>> {
     const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: { ...auth, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: env.MODEL, messages: [{ role: 'user', content: '請只回覆「好」。' }], max_tokens: 5 }),
+      body: JSON.stringify({
+        model: env.MODEL,
+        messages: [{ role: 'user', content: '請只回覆「好」。' }],
+        max_tokens: 20,
+        reasoning: { enabled: false },
+      }),
     });
     const text = await r.text();
     out.testCompletion = { status: r.status, body: text.slice(0, 400) };
