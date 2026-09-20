@@ -57,5 +57,5 @@ Responses are cached per (quote, situation) for 7 days.
 
 Deployment is automatic via `.github/workflows/worker.yml`. It needs three GitHub Actions
 secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `OPENROUTER_API_KEY`.
-The site calls `https://api.mt.ohcasi.com` by default (override with `VITE_EXPLAIN_URL`);
+The site calls `https://mt-api.ohcasi.com` by default (override with `VITE_EXPLAIN_URL`);
 attach that custom domain to the Worker once in the Cloudflare dashboard.

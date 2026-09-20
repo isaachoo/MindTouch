@@ -4,7 +4,7 @@ compatibility_date = "2026-09-01"
 
 # Custom domain for the API. Add it once in the Cloudflare dashboard
 # (Worker → Settings → Domains & Routes → Add → Custom domain), or uncomment:
-# routes = [{ pattern = "api.mt.ohcasi.com", custom_domain = true }]
+# routes = [{ pattern = "mt-api.ohcasi.com", custom_domain = true }]
 
 [vars]
 MODEL = "deepseek/deepseek-v4.1-flash"

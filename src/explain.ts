@@ -1,4 +1,4 @@
-const BASE = (import.meta.env.VITE_EXPLAIN_URL ?? 'https://api.mt.ohcasi.com').replace(/\/$/, '');
+const BASE = (import.meta.env.VITE_EXPLAIN_URL ?? 'https://mt-api.ohcasi.com').replace(/\/$/, '');
 
 export async function fetchExplanation(quoteId: string, categoryId: string, signal?: AbortSignal): Promise<string> {
   const res = await fetch(`${BASE}/explain`, {
