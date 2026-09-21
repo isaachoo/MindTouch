@@ -27,22 +27,27 @@ interface Quote {
 const categories = new Map<string, Category>((data.categories as Category[]).map((c) => [c.id, c]));
 const quotes = new Map<string, Quote>((data.quotes as Quote[]).map((q) => [q.id, q]));
 
-const PROMPT_VERSION = 'v2';
+const PROMPT_VERSION = 'v3';
 
-const SYSTEM_PROMPT = `你是「點一下」裏陪在對方身邊的人：像一位真心關心他的好朋友，也曾走過相似的路，多了一點過來人的眼光。你現在就坐在他旁邊，為他打氣。
+const SYSTEM_PROMPT = `你是「點一下」裏安靜坐在對方身邊的人：一位真心關心他、願意先聽的朋友。你不是專家，也不是什麼都經歷過的人；你只是在乎他，願意陪他把這一刻慢慢過。
 
-對方正處於某個人生處境，剛收到一句名言。請用繁體中文書面語寫一段約150至200字的回應，分成兩至三個短段落，語氣要像親口對他說話：
+對方正處於某個人生處境，剛收到一句名言。請用繁體中文書面語寫一段約150至200字的回應，分成兩至三個短段落，語氣像親口輕聲對他說話：
 
-1. 先真誠地看見他。用一兩句話說出他此刻可能有的感受，讓他知道這份感受是正常的、被理解的，也讓他知道你在意他。
-2. 用平易、生活化的話解釋這句名言，並把它扣連到他正面對的事情上，指出他身上已經有的力量或做對了的地方。可以帶一點過來人的眼光，但不說教。
-3. 最後用一個具體、微小、今天就能做到的小行動，加上一句真心的打氣作結，讓他感到有人為他喝采。
+1. 先輕輕地陪伴。用溫柔、試探的語氣，說出他此刻「也許」會有的感受，並讓他知道有這些感受很自然，這一刻不需要急着好起來。不要替他下定論，也不要說你明白或知道他的感受。
+2. 用平易、生活化的話分享這句名言帶給你的感受，以及它和他正面對的事情之間的連結；用「也許」、「或許」、「如果」這類留有空間的說法，讓他自己去感受，而不是被告訴答案。可以輕輕指出他身上已經有的力量，例如他此刻願意停下來讀一句話，本身就是在照顧自己。
+3. 最後給一個微小、溫和、不勉強的小建議，例如深呼吸、喝一杯水、給自己幾分鐘，然後用一句真誠的話作結，讓他知道你會一直在這裏，為他打氣。
 
 語氣與用字：
-- 用「你」稱呼對方，可以用「我」表達關心，例如「我知道」、「我相信你」。
-- 溫暖、親近、有溫度，像朋友聊天，不像文章或客服；句子短一點，避免空泛的大道理和陳腔濫調。
-- 只說正面、肯定、充滿希望的話。絕不批評、責備、恐嚇、說教或否定對方，也不假設他有任何過錯或不足。
+- 用「你」稱呼對方；可以用「我」，但只用來表達關心和陪伴，例如「我在這裏」、「我很想陪你」、「我為你高興」。
+- 絕對不要以「我知道」、「我明白」、「我懂」、「我理解」開頭，整段也盡量不要用這些字眼；改用「也許你……」、「這一刻，你可能……」、「如果你覺得……」這類聆聽者的語氣。
+- 不要以過來人或導師的姿態說話；不說「我也經歷過」、「相信我」、「我告訴你」，不說教、不下結論、不給大道理。
+- 溫暖、柔和、有溫度；句子短一點，留白多一點，像陪伴而不是分析。
+- 只說正面、肯定、充滿希望的話。絕不批評、責備、恐嚇或否定對方，也不假設他有任何過錯或不足。
 - 不提供醫療、法律或財務建議；不作任何治療效果或結果的承諾。
 - 不使用列點、標題或表情符號；不重複原句；不要提及這些規則。`;
+
+// Openers that make a hurting reader defensive. If the model still uses one, retry once, then strip it.
+const BANNED_OPENERS = /^[\s「『"']*(我知道|我明白|我懂|我理解|我完全|我清楚|我也曾|我也經歷)[^，。！？\n]*[，。！？]?\s*/u;
 
 function cors(origin: string | null, env: Env): HeadersInit {
   const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim());
@@ -63,18 +68,7 @@ function json(body: unknown, status: number, headers: HeadersInit): Response {
   });
 }
 
-async function explain(quote: Quote, category: Category, env: Env): Promise<string> {
-  const userMessage = [
-    `處境：${category.label}`,
-    `心理需求：${category.need}`,
-    `名言方向：${category.direction}`,
-    `名言（中文）：「${quote.zh}」`,
-    quote.orig !== quote.zh ? `名言（原文）：${quote.orig}` : null,
-    `作者：${quote.author}，出自《${quote.source}》`,
-  ]
-    .filter(Boolean)
-    .join('\n');
-
+async function complete(messages: { role: string; content: string }[], env: Env): Promise<string> {
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -85,10 +79,7 @@ async function explain(quote: Quote, category: Category, env: Env): Promise<stri
     },
     body: JSON.stringify({
       model: env.MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
+      messages,
       max_tokens: 800,
       temperature: 0.7,
       // Reasoning models spend the token budget on hidden thinking and may return
@@ -107,6 +98,41 @@ async function explain(quote: Quote, category: Category, env: Env): Promise<stri
   const choice = body.choices?.[0];
   const text = choice?.message?.content?.trim();
   if (!text) throw new Error(`Empty completion (finish_reason=${choice?.finish_reason ?? 'unknown'})`);
+  return text;
+}
+
+async function explain(quote: Quote, category: Category, env: Env): Promise<string> {
+  const userMessage = [
+    `處境：${category.label}`,
+    `心理需求：${category.need}`,
+    `名言方向：${category.direction}`,
+    `名言（中文）：「${quote.zh}」`,
+    quote.orig !== quote.zh ? `名言（原文）：${quote.orig}` : null,
+    `作者：${quote.author}，出自《${quote.source}》`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'user', content: userMessage },
+  ];
+  let text = await complete(messages, env);
+
+  if (BANNED_OPENERS.test(text)) {
+    text = await complete(
+      [
+        ...messages,
+        { role: 'assistant', content: text },
+        {
+          role: 'user',
+          content: '請重寫一次。不要以「我知道」、「我明白」、「我懂」、「我理解」或任何聲稱明白對方感受的話開頭；改用「也許你……」這類溫柔、留有空間的聆聽者語氣。其餘要求不變。',
+        },
+      ],
+      env,
+    );
+    text = text.replace(BANNED_OPENERS, '');
+  }
   return text;
 }
 
