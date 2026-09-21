@@ -102,3 +102,30 @@ python3 scripts/weekly_carers.py          # export -> data/carers/exports/, repo
 `scripts/diff_carers.py old.csv new.csv -o report` compares any two exports.
 `docs/openclaw-weekly-plan.md` is the brief for automating the weekly pipeline (carers.hk sync,
 organisation website watch, owner approval, publish to the app).
+
+### Automatic OpenClaw weekly pipeline
+
+The scheduled production job uses Node.js, so it does not depend on a separately installed Python runtime:
+
+```bash
+npm run carers:weekly
+```
+
+It reads the full carers.hk directory and all unit pages, watches every registered organisation URL,
+records dated service-state transitions in `data/carers/carers.db`, and generates:
+
+- `data/carers/published/services.json` — the versioned app data file
+- `data/carers/published/services.csv` — the versioned CSV mirror
+- `data/carers/exports/services_current.csv` — a complete CSV mirror
+- `data/carers/reports/run_<date>_<id>.json` — run counts and errors
+- `data/carers/reports/latest_digest.txt` — the WhatsApp-ready summary
+
+The first missing complete weekly run marks a service `suspected_inactive`; the third consecutive
+missing complete run marks it `inactive`. Failed or incomplete directory runs never advance this state.
+OpenClaw runs four guarded stages: `carers:directory`, `carers:websites`, `carers:extract`, then
+`carers:publish`. The extraction agent must quote evidence found verbatim in the saved source snapshot;
+the importer rejects unsupported services. Publication refuses to run unless all earlier stages completed
+successfully on the same Hong Kong date.
+The final stage creates a GitHub pull request containing `services.json` and `services.csv`, and requests
+automatic merge after repository checks pass. Operational state, credentials, snapshots and logs remain
+ignored by Git.
