@@ -168,11 +168,17 @@
 .area-select select {
   flex: 1;
   border: 0;
-  background: none;
-  color: inherit;
+  background: transparent;
+  color: var(--text);
   font: inherit;
   font-size: 1rem;
   padding: 6px 0;
+}
+
+/* Native option list: give it explicit colours so dark mode does not show pale text on white. */
+.area-select option {
+  background: var(--card);
+  color: var(--text);
 }
 
 .services-loading {

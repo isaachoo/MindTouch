@@ -195,7 +195,7 @@ async function handleCarer(request: Request, url: URL, env: Env, ctx: ExecutionC
     if (!/^H\d{2}$/.test(need)) return json({ error: 'unknown need' }, 400, headers);
 
     // Directory listings change slowly: cache each (need, area) for a day.
-    const cacheKey = new Request(`https://cache.local/carer/services/v2/${need}/${area ?? 'all'}`);
+    const cacheKey = new Request(`https://cache.local/carer/services/v3/${need}/${area ?? 'all'}`);
     const hit = await cache.match(cacheKey);
     if (hit) return new Response(hit.body, { status: 200, headers: { ...Object.fromEntries(hit.headers), ...headers } });
 

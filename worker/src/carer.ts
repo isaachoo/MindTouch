@@ -134,9 +134,11 @@ interface RawLocation {
   tag?: unknown;
 }
 
+const EMPTY_VALUES = new Set(['n/a', 'na', '-', '--', '/', '無', '不適用', 'nil', 'null']);
+
 function clean(v: unknown, max = 300): string {
   if (typeof v !== 'string') return '';
-  return v
+  const out = v
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -147,6 +149,7 @@ function clean(v: unknown, max = 300): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, max);
+  return EMPTY_VALUES.has(out.toLowerCase()) ? '' : out;
 }
 
 function absolute(v: unknown, base: string): string {
