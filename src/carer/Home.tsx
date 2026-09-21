@@ -1,5 +1,6 @@
 import Hotline from './Hotline';
 import { useInstall } from '../useInstall';
+import AppTabs from '../AppTabs';
 
 interface Props {
   onFeel: () => void;
@@ -11,6 +12,7 @@ export default function Home({ onFeel, onHelp }: Props) {
 
   return (
     <main className="screen home carer-home">
+      <AppTabs active="carer" />
       <header className="brand">
         <span className="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 32 32" width="30" height="30">

@@ -175,33 +175,38 @@ body {
   margin: 24px 0 0;
 }
 
-/* ---- link to the carer app ---- */
-.sister-link {
+/* ---- app switcher tabs ---- */
+.app-tabs {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin-top: 18px;
-  padding: 12px 18px;
-  border-radius: 16px;
-  border: 1px dashed var(--divider);
-  color: inherit;
-  text-decoration: none;
-  text-align: center;
-}
-
-.sister-link:active {
+  align-self: center;
+  gap: 4px;
+  padding: 4px;
+  margin-top: 4px;
+  border-radius: 999px;
   background: var(--accent-soft);
 }
 
-.sister-label {
+.app-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.sister-title {
+.app-tab.active {
+  background: var(--card);
   color: var(--accent-deep);
-  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.brand {
+  padding-top: 18px;
 }
 
 /* ---- install ---- */

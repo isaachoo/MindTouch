@@ -1,4 +1,5 @@
 import type { Category } from './data';
+import AppTabs from './AppTabs';
 import { useInstall } from './useInstall';
 
 interface Props {
@@ -11,6 +12,7 @@ export default function Home({ categories, onPick }: Props) {
 
   return (
     <main className="screen home">
+      <AppTabs active="main" />
       <header className="brand">
         <span className="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 32 32" width="28" height="28">
@@ -44,10 +46,6 @@ export default function Home({ categories, onPick }: Props) {
 
       <p className="footnote">點一下，收一句鼓勵。</p>
 
-      <a className="sister-link" href={`${import.meta.env.BASE_URL}carer/`}>
-        <span className="sister-label">照顧長者的你</span>
-        <span className="sister-title">照顧者・點一下 →</span>
-      </a>
 
       {install.kind === 'prompt' && (
         <button type="button" className="install" onClick={() => void install.install()}>
