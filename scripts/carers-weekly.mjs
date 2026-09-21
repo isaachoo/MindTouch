@@ -1176,6 +1176,40 @@ async function runPipeline(options) {
     if ((options.stage === 'all' || options.stage === 'watch') && options.watchSites) {
       sourceResult = await watchSources(db, options);
     }
+    if (options.stage === 'publish') {
+      const prior = db.prepare(
+        "SELECT * FROM runs WHERE run_date=? AND run_id<>? AND status='completed' ORDER BY run_id",
+      ).all(options.date, runId);
+      const directoryRun = prior.find((row) => row.stage === 'directory');
+      const watchRun = prior.find((row) => row.stage === 'watch');
+      directory = {
+        rows: [],
+        units: Number(directoryRun?.directory_units || 0),
+        requests: Number(directoryRun?.directory_requests || 0),
+        queries: 0,
+      };
+      for (const row of prior.filter((item) => ['directory', 'extract'].includes(item.stage))) {
+        serviceCounts.added += Number(row.services_added || 0);
+        serviceCounts.updated += Number(row.services_updated || 0);
+        serviceCounts.suspected += Number(row.services_suspected || 0);
+        serviceCounts.deactivated += Number(row.services_deactivated || 0);
+        serviceCounts.reactivated += Number(row.services_reactivated || 0);
+      }
+      if (watchRun) {
+        sourceResult.metrics = {
+          registered: Number(watchRun.sources_registered || 0),
+          attempted: Number(watchRun.sources_attempted || 0),
+          succeeded: Number(watchRun.sources_succeeded || 0),
+          unchanged: Number(watchRun.sources_unchanged || 0),
+          changed: Number(watchRun.sources_changed || 0),
+          new: Number(watchRun.sources_new || 0),
+          failed: Number(watchRun.sources_failed || 0),
+          robotsBlocked: Number(watchRun.sources_robots_blocked || 0),
+          discovered: Number(watchRun.sources_discovered || 0),
+        };
+        sourceResult.errors = JSON.parse(watchRun.errors_json || '[]');
+      }
+    }
 
     const queueDir = path.join(options.root, 'queues');
     mkdirSync(queueDir, { recursive: true });
@@ -1205,7 +1239,7 @@ async function runPipeline(options) {
       stage: options.stage,
       started_at: db.prepare('SELECT started_at FROM runs WHERE run_id=?').get(runId).started_at,
       finished_at: new Date().toISOString(),
-      directory: { units: directory.rows.length, requests: directory.requests, queries: directory.queries, details_read: options.details },
+      directory: { units: directory.units ?? directory.rows.length, requests: directory.requests, queries: directory.queries, details_read: options.details },
       sources,
       services: { ...serviceCounts, active_total: activeTotal },
       errors: sourceResult.errors,
