@@ -6,3 +6,4 @@ src/data/quotes.json
 src/carer/data/quotes.json
 *.cache.json
 carers_hk_services.csv
+data/carers/

@@ -91,3 +91,14 @@ python3 scripts/scrape_carers.py --long -o rows.csv    # one row per (unit, cate
 
 Default 1 s between requests. Unit pages are cached in `<output>.cache.json`, so Ctrl+C is safe
 and the next run resumes. Category and district IDs live at the top of the script.
+
+### Weekly run and change report
+
+```bash
+pip install openpyxl                      # once, for the Excel report
+python3 scripts/weekly_carers.py          # export -> data/carers/exports/, report -> data/carers/reports/
+```
+
+`scripts/diff_carers.py old.csv new.csv -o report` compares any two exports.
+`docs/openclaw-weekly-plan.md` is the brief for automating the weekly pipeline (carers.hk sync,
+organisation website watch, owner approval, publish to the app).
