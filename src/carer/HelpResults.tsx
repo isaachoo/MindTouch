@@ -97,7 +97,10 @@ export default function HelpResults({ need, onBack }: Props) {
       {state.status === 'done' && state.data.items.length > 0 && (
         <>
           <p className="result-count">
-            搵到 {state.data.items.length} 個服務{state.data.partial ? '（部分資料暫時載入唔到）' : ''}
+            {state.data.total > state.data.items.length
+              ? `顯示 ${state.data.items.length} 個服務，照顧者資訊網共有約 ${state.data.total} 個`
+              : `搵到 ${state.data.items.length} 個服務`}
+            {state.data.partial ? '（部分資料暫時載入唔到）' : ''}
           </p>
           <ul className="services">
             {state.data.items.map((s) => (

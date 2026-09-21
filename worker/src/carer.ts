@@ -160,17 +160,21 @@ function absolute(v: unknown, base: string): string {
   }
 }
 
-async function queryDirectory(
+const PAGE_SIZE = 20; // observed page size of carers.hk
+const MAX_PAGES = 5; // up to 100 records per category
+
+async function queryDirectoryPage(
   q: { audience: number; type: number; subtype?: number },
   area: number | undefined,
+  page: number,
   base: string,
-): Promise<Service[]> {
+): Promise<{ items: Service[]; total: number }> {
   const body = new URLSearchParams();
   body.append('aduience[]', String(q.audience));
   body.append('type[]', String(q.type));
   if (q.subtype) body.append('type5[]', String(q.subtype));
   if (area) body.append('area[]', String(area));
-  body.append('page', '1');
+  body.append('page', String(page));
 
   const res = await fetch(`${base}/zh_hk/ajax/map`, {
     method: 'POST',
@@ -184,10 +188,11 @@ async function queryDirectory(
   });
   if (!res.ok) throw new Error(`carers.hk ${res.status}`);
   // Content-Type may be text/html even for JSON: parse the body regardless.
-  const parsed = JSON.parse(await res.text()) as { locations?: RawLocation[] };
+  const parsed = JSON.parse(await res.text()) as { locations?: RawLocation[]; total?: unknown };
   if (!Array.isArray(parsed.locations)) throw new Error('unexpected directory response');
+  const total = Number(parsed.total);
 
-  return parsed.locations
+  const items = parsed.locations
     .map((l) => ({
       name: clean(l.name, 200),
       address: clean(l.address),
@@ -198,6 +203,24 @@ async function queryDirectory(
       tags: Array.isArray(l.tag) ? l.tag.map((t) => clean(t, 30)).filter(Boolean).slice(0, 5) : [],
     }))
     .filter((s) => s.name && s.detailUrl);
+  return { items, total: Number.isFinite(total) ? total : items.length };
+}
+
+/** All pages for one category, up to MAX_PAGES. */
+async function queryDirectory(
+  q: { audience: number; type: number; subtype?: number },
+  area: number | undefined,
+  base: string,
+): Promise<{ items: Service[]; total: number }> {
+  const first = await queryDirectoryPage(q, area, 1, base);
+  const items = [...first.items];
+  const pages = Math.min(MAX_PAGES, Math.ceil(first.total / PAGE_SIZE));
+  for (let p = 2; p <= pages && first.items.length === PAGE_SIZE; p++) {
+    const next = await queryDirectoryPage(q, area, p, base);
+    if (next.items.length === 0) break;
+    items.push(...next.items);
+  }
+  return { items, total: first.total };
 }
 
 export async function findServices(
@@ -212,6 +235,7 @@ export async function findServices(
   const results = await Promise.allSettled(need.queries.map((q) => queryDirectory(q, area, base)));
   const seen = new Set<string>();
   const items: Service[] = [];
+  let upstreamTotal = 0;
   let failed = 0;
   for (const r of results) {
     if (r.status === 'rejected') {
@@ -219,12 +243,14 @@ export async function findServices(
       console.error('carers.hk query failed:', String(r.reason));
       continue;
     }
-    for (const s of r.value) {
+    upstreamTotal += r.value.total;
+    for (const s of r.value.items) {
       if (seen.has(s.detailUrl)) continue;
       seen.add(s.detailUrl);
       items.push(s);
     }
   }
   if (failed === results.length) throw new Error('all carers.hk queries failed');
-  return { items, total: items.length, fetchedAt: new Date().toISOString(), partial: failed > 0 };
+  // total = how many the directory reports across categories (may include overlaps we de-duplicated)
+  return { items, total: Math.max(items.length, upstreamTotal), fetchedAt: new Date().toISOString(), partial: failed > 0 };
 }
