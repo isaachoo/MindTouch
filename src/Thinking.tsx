@@ -28,11 +28,24 @@ export function recordDuration(ms: number): void {
 const MESSAGES = ['正在細讀這句話……', '想想它和你的處境有什麼關連……', '整理一些想對你說的話……', '快好了，再等一下……'];
 const SLOW_MESSAGE = '今天回應慢了一點，我仍在努力……';
 
-interface Props {
-  estimate: number;
+export interface ThinkingCopy {
+  messages: string[];
+  slow: string;
+  eta: (seconds: number) => string;
 }
 
-export default function Thinking({ estimate }: Props) {
+const DEFAULT_COPY: ThinkingCopy = {
+  messages: MESSAGES,
+  slow: SLOW_MESSAGE,
+  eta: (s) => `通常需時約 ${s} 秒`,
+};
+
+interface Props {
+  estimate: number;
+  copy?: ThinkingCopy;
+}
+
+export default function Thinking({ estimate, copy = DEFAULT_COPY }: Props) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -45,7 +58,7 @@ export default function Thinking({ estimate }: Props) {
   const ratio = elapsed / estimate;
   const progress = ratio <= 1 ? ratio * 85 : 85 + 13 * (1 - Math.exp(-(ratio - 1)));
   const slow = elapsed > estimate * 2;
-  const message = slow ? SLOW_MESSAGE : MESSAGES[Math.min(MESSAGES.length - 1, Math.floor(elapsed / 3500))];
+  const message = slow ? copy.slow : copy.messages[Math.min(copy.messages.length - 1, Math.floor(elapsed / 3500))];
   const seconds = Math.max(5, Math.round(estimate / 1000 / 5) * 5);
 
   return (
@@ -64,7 +77,7 @@ export default function Thinking({ estimate }: Props) {
       <div className="thinking-bar">
         <span style={{ width: `${progress.toFixed(1)}%` }} />
       </div>
-      <p className="thinking-eta">通常需時約 {seconds} 秒</p>
+      <p className="thinking-eta">{copy.eta(seconds)}</p>
     </div>
   );
 }

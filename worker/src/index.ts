@@ -1,11 +1,13 @@
 // Cloudflare Worker: turns a (quote, situation) pair into a short, positive
 // explanation via OpenRouter. The API key lives only here, as a secret.
 import data from '../../src/data/quotes.json';
+import { CARER_PROMPT_VERSION, explainCarer, findServices, lookupCarerQuote } from './carer';
 
 interface Env {
   OPENROUTER_API_KEY: string;
   MODEL: string;
   ALLOWED_ORIGINS: string;
+  CARERS_BASE?: string;
 }
 
 interface Category {
@@ -182,6 +184,79 @@ async function health(env: Env): Promise<Record<string, unknown>> {
   return out;
 }
 
+// ---------- 照顧者・點一下 ----------
+async function handleCarer(request: Request, url: URL, env: Env, ctx: ExecutionContext, headers: HeadersInit): Promise<Response> {
+  const cache = caches.default;
+
+  if (url.pathname === '/carer/services' && request.method === 'GET') {
+    const need = url.searchParams.get('need') ?? '';
+    const areaNum = Number(url.searchParams.get('area'));
+    const area = Number.isInteger(areaNum) && areaNum > 0 ? areaNum : undefined;
+    if (!/^H\d{2}$/.test(need)) return json({ error: 'unknown need' }, 400, headers);
+
+    // Directory listings change slowly: cache each (need, area) for a day.
+    const cacheKey = new Request(`https://cache.local/carer/services/v1/${need}/${area ?? 'all'}`);
+    const hit = await cache.match(cacheKey);
+    if (hit) return new Response(hit.body, { status: 200, headers: { ...Object.fromEntries(hit.headers), ...headers } });
+
+    try {
+      const result = await findServices(need, area, env);
+      if (!result) return json({ error: 'unknown need' }, 400, headers);
+      const body = JSON.stringify(result);
+      if (!result.partial) {
+        ctx.waitUntil(
+          cache.put(
+            cacheKey,
+            new Response(body, {
+              headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=86400' },
+            }),
+          ),
+        );
+      }
+      return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers } });
+    } catch (err) {
+      console.error(err);
+      return json({ error: 'directory unavailable', detail: String(err).slice(0, 200) }, 502, headers);
+    }
+  }
+
+  if (url.pathname === '/carer/explain' && request.method === 'POST') {
+    let payload: { quoteId?: unknown; categoryId?: unknown };
+    try {
+      payload = await request.json();
+    } catch {
+      return json({ error: 'invalid json' }, 400, headers);
+    }
+    const found = lookupCarerQuote(payload.quoteId, payload.categoryId);
+    if (!found) return json({ error: 'unknown quote or category' }, 400, headers);
+    if (!env.OPENROUTER_API_KEY) return json({ error: 'server not configured' }, 503, headers);
+
+    const cacheKey = new Request(`https://cache.local/carer/explain/${CARER_PROMPT_VERSION}/${env.MODEL}/${found.category.id}/${found.quote.id}`);
+    const hit = await cache.match(cacheKey);
+    if (hit) {
+      const { text } = (await hit.json()) as { text: string };
+      return json({ text, cached: true }, 200, headers);
+    }
+    try {
+      const text = await explainCarer(found.quote, found.category, env);
+      ctx.waitUntil(
+        cache.put(
+          cacheKey,
+          new Response(JSON.stringify({ text }), {
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=604800' },
+          }),
+        ),
+      );
+      return json({ text }, 200, headers);
+    } catch (err) {
+      console.error(err);
+      return json({ error: 'upstream failed', detail: String(err).slice(0, 300) }, 502, headers);
+    }
+  }
+
+  return json({ error: 'not found' }, 404, headers);
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const origin = request.headers.get('Origin');
@@ -190,6 +265,7 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     if (url.pathname === '/health' && request.method === 'GET') return json(await health(env), 200, headers);
+    if (url.pathname.startsWith('/carer/')) return handleCarer(request, url, env, ctx, headers);
     if (url.pathname !== '/explain') return json({ error: 'not found' }, 404, headers);
     if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405, headers);
 

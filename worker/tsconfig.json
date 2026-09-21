@@ -10,5 +10,5 @@
     "resolveJsonModule": true,
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["src"]
+  "include": ["src", "../src/carer/needs.ts"]
 }

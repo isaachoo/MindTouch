@@ -1,9 +1,12 @@
 // Converts data/quotes.csv into a slim JSON the site ships.
 // Quotes are de-duplicated (one quote can belong to several situations).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { parse } from 'csv-parse/sync';
 
-const csv = readFileSync('data/quotes.csv', 'utf8').replace(/^﻿/, '');
+// Usage: node scripts/build-data.mjs [input.csv] [output.json]
+const [, , input = 'data/quotes.csv', output = 'src/data/quotes.json'] = process.argv;
+const csv = readFileSync(input, 'utf8').replace(/^\uFEFF/, '');
 const rows = parse(csv, { columns: true, skip_empty_lines: true });
 
 const REQUIRED = [
@@ -57,7 +60,7 @@ for (const r of rows) {
   }
 }
 if (errors.length) {
-  console.error(`quotes.csv has ${errors.length} problem(s):\n  ` + errors.slice(0, 20).join('\n  '));
+  console.error(`${input} has ${errors.length} problem(s):\n  ` + errors.slice(0, 20).join('\n  '));
   process.exit(1);
 }
 
@@ -66,6 +69,6 @@ const out = {
   quotes: [...quotes.values()],
 };
 
-mkdirSync('src/data', { recursive: true });
-writeFileSync('src/data/quotes.json', JSON.stringify(out));
-console.log(`categories: ${out.categories.length}, quotes: ${out.quotes.length}, rows: ${rows.length}`);
+mkdirSync(dirname(output), { recursive: true });
+writeFileSync(output, JSON.stringify(out));
+console.log(`${input} -> ${output}: categories ${out.categories.length}, quotes ${out.quotes.length}, rows ${rows.length}`);

@@ -59,3 +59,20 @@ Deployment is automatic via `.github/workflows/worker.yml`. It needs three GitHu
 secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `OPENROUTER_API_KEY`.
 The site calls `https://mt-api.ohcasi.com` by default (override with `VITE_EXPLAIN_URL`);
 attach that custom domain to the Worker once in the Cloudflare dashboard.
+
+## 照顧者・點一下 (`/carer/`)
+
+A separate app for carers of elderly people in Hong Kong, served at `https://mt.ohcasi.com/carer/`
+with its own name, icon, manifest and 口語 UI. Entry: `carer/index.html` → `src/carer/`.
+It shares only the design tokens (`src/styles.css`), the install hook and the loading component.
+
+- **Part 1 想打打氣**: 10 feelings → one random quote from `data/carer_quotes.csv` (built to
+  `src/carer/data/quotes.json`) → optional 多講一點 (Worker `POST /carer/explain`, 口語 listener prompt).
+- **Part 2 想搵資源**: 12 needs (`src/carer/needs.ts`) → live listings from the carers.hk directory via the
+  Worker (`GET /carer/services?need=H04&area=534`), de-duplicated across categories and cached 24 h.
+  Every screen also deep-links to the pre-filtered carers.hk page as a fallback. District choice is remembered.
+- Hotline 182 183 is shown on home, the needs list and every results page.
+
+carers.hk has no documented API; the Worker calls the same `POST /zh_hk/ajax/map` endpoint the site uses
+(`aduience[]`, `type[]`, `type5[]`, `area[]`, `page`). IDs are configured in `src/carer/needs.ts`.
+Results always carry the source line 「資料來源：照顧者資訊網 carers.hk」 and link back to the unit page.

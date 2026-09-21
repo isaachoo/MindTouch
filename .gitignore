@@ -3,3 +3,4 @@ dist
 dev-dist
 src/data/quotes.json
 *.tsbuildinfo
+src/carer/data/quotes.json

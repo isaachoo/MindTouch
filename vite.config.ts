@@ -1,17 +1,48 @@
-import { defineConfig } from 'vite';
+import { resolve } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // Root by default (custom domain / Cloudflare Pages). For GitHub Pages project URL set VITE_BASE=/MindTouch/.
 const base = process.env.VITE_BASE ?? '/';
 
+// The carer app lives at /carer/ with its own manifest and icons. vite-plugin-pwa
+// injects the root manifest into every HTML entry, so swap it for that page.
+function carerManifest(): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'carer-manifest',
+    enforce: 'post',
+    configResolved(config) {
+      outDir = config.build.outDir;
+    },
+    // vite-plugin-pwa injects its tags after string transforms, so patch the written file.
+    writeBundle() {
+      const file = resolve(outDir, 'carer/index.html');
+      if (!existsSync(file)) return;
+      const html = readFileSync(file, 'utf8')
+        .replace(/<link rel="manifest"[^>]*>/, `<link rel="manifest" href="${base}carer/manifest.webmanifest">`);
+      writeFileSync(file, html);
+    },
+  };
+}
+
 export default defineConfig({
   base,
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        carer: resolve(__dirname, 'carer/index.html'),
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['icon.svg', 'apple-touch-icon.png', 'carer/icon.svg', 'carer/apple-touch-icon.png', 'carer/manifest.webmanifest'],
       manifest: {
         name: '點一下',
         short_name: '點一下',
@@ -29,8 +60,11 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
+        // Never let the carer entry fall back to the root app when offline.
+        navigateFallbackDenylist: [/^\/carer\//],
       },
     }),
+    carerManifest(),
   ],
 });

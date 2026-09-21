@@ -1,0 +1,16 @@
+{
+  "name": "照顧者・點一下",
+  "short_name": "照顧者・點一下",
+  "description": "照顧長者嘅你，揀一個此刻嘅感覺收一句話，或者搵合適嘅服務資源。",
+  "lang": "zh-Hant-HK",
+  "start_url": "/carer/",
+  "scope": "/carer/",
+  "display": "standalone",
+  "background_color": "#F6F7F1",
+  "theme_color": "#F6F7F1",
+  "icons": [
+    { "src": "/carer/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/carer/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/carer/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
