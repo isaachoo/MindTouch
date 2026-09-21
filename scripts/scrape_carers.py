@@ -7,11 +7,14 @@ POST /zh_hk/ajax/map, pages through results, de-duplicates units by their detail
 and writes one row per unit with all categories it appears under.
 
 Usage:
-  python3 scripts/scrape_carers.py                       # -> carers_hk_services.csv
+  python3 scripts/scrape_carers.py                       # full export -> carers_hk_services.csv
   python3 scripts/scrape_carers.py -o out.csv --delay 1.5
-  python3 scripts/scrape_carers.py --subcategories       # also query type5 filters (slower, adds subcategory labels)
-  python3 scripts/scrape_carers.py --details             # also fetch each /unit/<id> page and save its text
+  python3 scripts/scrape_carers.py --no-subcategories    # skip the type5 subcategory queries
+  python3 scripts/scrape_carers.py --no-details          # skip fetching each /unit/<id> page (much faster)
   python3 scripts/scrape_carers.py --long -o rows.csv    # one row per (unit, category) instead of one per unit
+
+Unit pages already fetched are cached in .carers_cache.json next to the output, so an
+interrupted run (Ctrl+C) still writes the CSV and the next run resumes where it stopped.
 
 Standard library only. Be polite: default 1 s between requests. Personal use;
 see https://www.carers.hk/copyright-statement and keep the source attribution.
@@ -197,8 +200,8 @@ def main() -> int:
     ap.add_argument("--base", default=BASE, help="override base URL (for testing)")
     ap.add_argument("--delay", type=float, default=1.0, help="seconds between requests (default 1.0)")
     ap.add_argument("--max-pages", type=int, default=50, help="safety cap per category (default 50 = 1000 units)")
-    ap.add_argument("--subcategories", action="store_true", help="also query every known type5 subcategory")
-    ap.add_argument("--details", action="store_true", help="fetch each unit page and add a detail_text column")
+    ap.add_argument("--no-subcategories", dest="subcategories", action="store_false", help="skip type5 subcategory queries")
+    ap.add_argument("--no-details", dest="details", action="store_false", help="skip fetching each unit page")
     ap.add_argument("--long", action="store_true", help="one row per (unit, category) instead of one per unit")
     ap.add_argument("--only-audience", type=int, choices=sorted(AUDIENCES), help="limit to 30 or 31")
     args = ap.parse_args()
@@ -217,7 +220,20 @@ def main() -> int:
         ]
 
     units: dict[str, dict] = {}
-    memberships: dict[str, list[str]] = {}
+    memberships: dict[str, list[str]] = {}      # main categories
+    sub_memberships: dict[str, list[str]] = {}  # subcategories
+
+    cache_path = args.output + ".cache.json"
+    try:
+        with open(cache_path, encoding="utf-8") as f:
+            detail_cache: dict[str, str] = json.load(f)
+        print(f"Resuming: {len(detail_cache)} unit pages already cached in {cache_path}", file=sys.stderr)
+    except (OSError, json.JSONDecodeError):
+        detail_cache = {}
+
+    def save_cache():
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(detail_cache, f, ensure_ascii=False)
 
     for i, (a, t, s, label) in enumerate(queries, 1):
         tag = f"{AUDIENCES[a]} / {label}"
@@ -249,22 +265,32 @@ def main() -> int:
                         "detail_url": detail,
                     }
                     memberships[uid] = []
-                if tag not in memberships[uid]:
-                    memberships[uid].append(tag)
+                    sub_memberships[uid] = []
+                bucket = sub_memberships if s else memberships
+                if tag not in bucket[uid]:
+                    bucket[uid].append(tag)
             print(f"    {count} records ({len(units)} unique so far)", file=sys.stderr)
         except Exception as e:  # keep going; report at the end
             print(f"    ! skipped: {e}", file=sys.stderr)
 
     if args.details:
-        print(f"Fetching {len(units)} unit pages…", file=sys.stderr)
-        for n, (uid, u) in enumerate(units.items(), 1):
-            try:
-                u["detail_text"] = client.unit_text(u["detail_url"])
-            except Exception as e:
-                u["detail_text"] = ""
-                print(f"  ! unit {uid}: {e}", file=sys.stderr)
-            if n % 25 == 0:
-                print(f"  {n}/{len(units)}", file=sys.stderr)
+        todo = [uid for uid in units if uid not in detail_cache]
+        print(f"Fetching {len(todo)} unit pages ({len(units) - len(todo)} cached)…", file=sys.stderr)
+        try:
+            for n, uid in enumerate(todo, 1):
+                try:
+                    detail_cache[uid] = client.unit_text(units[uid]["detail_url"])
+                except Exception as e:
+                    print(f"  ! unit {uid}: {e}", file=sys.stderr)
+                if n % 25 == 0:
+                    save_cache()
+                    print(f"  {n}/{len(todo)}", file=sys.stderr)
+        except KeyboardInterrupt:
+            print("\nInterrupted: saving what we have. Run again to resume.", file=sys.stderr)
+        finally:
+            save_cache()
+        for uid, u in units.items():
+            u["detail_text"] = detail_cache.get(uid, "")
 
     base_cols = [
         "unit_id", "name", "address", "district", "tel", "website", "tags", "opening_time",
@@ -275,14 +301,16 @@ def main() -> int:
 
     with open(args.output, "w", encoding="utf-8-sig", newline="") as f:
         if args.long:
-            cols = base_cols + ["category", "source", "fetched_at"]
+            cols = base_cols + ["category", "level", "source", "fetched_at"]
             w = csv.DictWriter(f, fieldnames=cols, quoting=csv.QUOTE_ALL)
             w.writeheader()
             for uid, u in units.items():
-                for cat in memberships[uid]:
-                    w.writerow({**{k: u.get(k, "") for k in base_cols}, "category": cat, "source": "照顧者資訊網 carers.hk", "fetched_at": fetched_at})
+                rows = [(c, "category") for c in memberships[uid]] + [(c, "subcategory") for c in sub_memberships[uid]]
+                for cat, level in rows:
+                    w.writerow({**{k: u.get(k, "") for k in base_cols}, "category": cat, "level": level,
+                                "source": "照顧者資訊網 carers.hk", "fetched_at": fetched_at})
         else:
-            cols = base_cols + ["categories", "category_count", "source", "fetched_at"]
+            cols = base_cols + ["categories", "category_count", "subcategories", "subcategory_count", "source", "fetched_at"]
             w = csv.DictWriter(f, fieldnames=cols, quoting=csv.QUOTE_ALL)
             w.writeheader()
             for uid, u in units.items():
@@ -290,6 +318,8 @@ def main() -> int:
                     **{k: u.get(k, "") for k in base_cols},
                     "categories": " | ".join(memberships[uid]),
                     "category_count": len(memberships[uid]),
+                    "subcategories": " | ".join(sub_memberships[uid]),
+                    "subcategory_count": len(sub_memberships[uid]),
                     "source": "照顧者資訊網 carers.hk",
                     "fetched_at": fetched_at,
                 })

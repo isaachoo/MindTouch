@@ -84,10 +84,10 @@ carers.hk directory, pages through results and writes one row per unit with all 
 categories it appears under.
 
 ```bash
-python3 scripts/scrape_carers.py                       # -> carers_hk_services.csv
-python3 scripts/scrape_carers.py --subcategories       # also query type5 filters
-python3 scripts/scrape_carers.py --details             # also fetch each unit page (detail_text column)
+python3 scripts/scrape_carers.py                       # full export incl. subcategories + unit pages
+python3 scripts/scrape_carers.py --no-details          # much faster: directory fields only
 python3 scripts/scrape_carers.py --long -o rows.csv    # one row per (unit, category)
 ```
 
-Default 1 s between requests. Category and district IDs live at the top of the script.
+Default 1 s between requests. Unit pages are cached in `<output>.cache.json`, so Ctrl+C is safe
+and the next run resumes. Category and district IDs live at the top of the script.
