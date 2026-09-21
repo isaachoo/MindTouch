@@ -76,3 +76,18 @@ It shares only the design tokens (`src/styles.css`), the install hook and the lo
 carers.hk has no documented API; the Worker calls the same `POST /zh_hk/ajax/map` endpoint the site uses
 (`aduience[]`, `type[]`, `type5[]`, `area[]`, `page`). IDs are configured in `src/carer/needs.ts`.
 Results always carry the source line 「資料來源：照顧者資訊網 carers.hk」 and link back to the unit page.
+
+## Exporting the carers.hk directory to CSV
+
+`scripts/scrape_carers.py` (standard library only) walks every audience/category of the
+carers.hk directory, pages through results and writes one row per unit with all the
+categories it appears under.
+
+```bash
+python3 scripts/scrape_carers.py                       # -> carers_hk_services.csv
+python3 scripts/scrape_carers.py --subcategories       # also query type5 filters
+python3 scripts/scrape_carers.py --details             # also fetch each unit page (detail_text column)
+python3 scripts/scrape_carers.py --long -o rows.csv    # one row per (unit, category)
+```
+
+Default 1 s between requests. Category and district IDs live at the top of the script.
