@@ -4,7 +4,18 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { applyDirectoryRows, applyWebExtractions, digestText, ensureSchema, inferNeeds, parseArgs } from './carers-weekly.mjs';
+import {
+  applyDirectoryRows,
+  applyWebExtractions,
+  digestText,
+  ensureSchema,
+  failureBreakdown,
+  failureDomains,
+  inferNeeds,
+  normalizeSourceUrl,
+  parseArgs,
+  safeFetchWithRetry,
+} from './carers-weekly.mjs';
 
 function database() {
   const db = new DatabaseSync(':memory:');
@@ -136,4 +147,79 @@ test('digest includes every requested count', () => {
   for (const expected of ['Registered: 100', 'Attempted: 100', 'Added: 8', 'Updated: 13', 'Deactivated: 2', 'Active total: 2361']) {
     assert.match(digest, new RegExp(expected));
   }
+});
+
+test('removes tracking parameters without changing service parameters', () => {
+  assert.equal(
+    normalizeSourceUrl('https://example.org/service?sid=3&gclid=tracking&utm_source=test'),
+    'https://example.org/service?sid=3',
+  );
+});
+
+test('website fetch retries temporary errors and then succeeds', async () => {
+  const responses = [
+    new Response('', { status: 503 }),
+    new Response('ok', { status: 200, headers: { 'content-type': 'text/plain' } }),
+  ];
+  let calls = 0;
+  const result = await safeFetchWithRetry('https://example.org/service', {
+    fetchImpl: async () => responses[calls++],
+    wait: async () => {},
+    validateUrl: async (value) => new URL(value),
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.attempts, 2);
+  assert.equal(result.body.toString('utf8'), 'ok');
+});
+
+test('website fetch does not retry permanent access errors', async () => {
+  let calls = 0;
+  await assert.rejects(() => safeFetchWithRetry('https://example.org/service', {
+    fetchImpl: async () => {
+      calls++;
+      return new Response('', { status: 403 });
+    },
+    wait: async () => {},
+    validateUrl: async (value) => new URL(value),
+  }), (error) => {
+    assert.equal(error.status, 403);
+    assert.equal(error.attempts, 1);
+    assert.equal(error.retryable, false);
+    return true;
+  });
+  assert.equal(calls, 1);
+});
+
+test('failure breakdown separates HTTP and network causes', () => {
+  assert.deepEqual(failureBreakdown([
+    { error: 'HTTP 403', status: 403, category: 'http' },
+    { error: 'HTTP 503', status: 503, category: 'http' },
+    { error: 'HTTP 503' },
+    { error: 'fetch failed', category: 'dns' },
+  ]), {
+    http: { 403: 1, 503: 2 },
+    other: { dns: 1 },
+  });
+
+  const digest = digestText({
+    run_date: '2026-09-28',
+    directory: { units: 0 },
+    sources: { registered: 2, attempted: 2, succeeded: 0, unchanged: 0, changed: 0, new: 0, failed: 2, robots_blocked: 0, discovered: 0 },
+    services: { added: 0, updated: 0, suspected: 0, deactivated: 0, reactivated: 0, active_total: 1 },
+    errors: [
+      { url: 'https://example.org/a', error: 'HTTP 403', status: 403, category: 'http' },
+      { url: 'https://example.org/b', error: 'fetch failed', category: 'timeout' },
+    ],
+    git: { status: 'not requested' },
+  });
+  assert.match(digest, /Failure breakdown: HTTP 403: 1, timeout: 1/u);
+  assert.match(digest, /Most affected domains: example\.org: 2/u);
+  assert.deepEqual(failureDomains([
+    { url: 'https://b.example/a' },
+    { url: 'https://a.example/a' },
+    { url: 'https://b.example/b' },
+  ]), [
+    { domain: 'b.example', count: 2 },
+    { domain: 'a.example', count: 1 },
+  ]);
 });

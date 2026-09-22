@@ -29,6 +29,8 @@ const REPO = path.resolve(HERE, '..');
 const DEFAULT_BASE = 'https://www.carers.hk';
 const USER_AGENT = 'MindTouch-carer-watch/2.0 (personal use; +https://mt.ohcasi.com/carer/)';
 const PAGE_SIZE = 20;
+const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+const RETRY_DELAYS_MS = [2_000, 5_000];
 
 const AUDIENCES = new Map([
   [30, '長者'],
@@ -765,6 +767,11 @@ function normalizeSourceUrl(value) {
     const url = new URL(value);
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return '';
     url.hash = '';
+    for (const key of [...url.searchParams.keys()]) {
+      if (/^utm_/iu.test(key) || ['fbclid', 'gclid', 'mc_cid', 'mc_eid'].includes(key.toLowerCase())) {
+        url.searchParams.delete(key);
+      }
+    }
     return url.href;
   } catch {
     return '';
@@ -818,26 +825,109 @@ async function assertPublicUrl(value) {
 }
 
 async function safeFetch(value, { timeoutMs = 20_000, maxBytes = 5_000_000 } = {}) {
-  let url = await assertPublicUrl(value);
-  for (let redirects = 0; redirects <= 3; redirects++) {
-    const response = await fetch(url, {
-      redirect: 'manual',
-      headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,text/plain,application/pdf,*/*' },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if ([301, 302, 303, 307, 308].includes(response.status)) {
-      const location = response.headers.get('location');
-      if (!location) throw new Error(`redirect ${response.status} without location`);
-      url = await assertPublicUrl(new URL(location, url).href);
-      continue;
-    }
-    const declared = Number(response.headers.get('content-length') || 0);
-    if (declared > maxBytes) throw new Error(`response exceeds ${maxBytes} bytes`);
-    const body = Buffer.from(await response.arrayBuffer());
-    if (body.length > maxBytes) throw new Error(`response exceeds ${maxBytes} bytes`);
-    return { response, body, finalUrl: url.href };
+  return safeFetchWithRetry(value, { timeoutMs, maxBytes });
+}
+
+function retryAfterMs(response) {
+  const raw = response.headers.get('retry-after');
+  if (!raw) return 0;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, 30_000);
+  const date = Date.parse(raw);
+  return Number.isFinite(date) ? Math.min(Math.max(date - Date.now(), 0), 30_000) : 0;
+}
+
+function fetchFailure(error) {
+  const status = Number(error?.status || 0);
+  if (status) {
+    return {
+      category: 'http',
+      code: `http_${status}`,
+      status,
+      retryable: RETRYABLE_HTTP_STATUSES.has(status),
+    };
   }
-  throw new Error('too many redirects');
+  const causeCode = String(error?.cause?.code || error?.code || '').toUpperCase();
+  const message = String(error?.message || error || '').toLowerCase();
+  if (error?.name === 'TimeoutError' || error?.name === 'AbortError'
+      || causeCode.includes('TIMEOUT') || message.includes('timed out')) {
+    return { category: 'timeout', code: causeCode.toLowerCase() || 'timeout', status: 0, retryable: true };
+  }
+  if (['ENOTFOUND', 'EAI_AGAIN', 'EAI_FAIL'].includes(causeCode)) {
+    return { category: 'dns', code: causeCode.toLowerCase(), status: 0, retryable: true };
+  }
+  if (/^(ERR_TLS|CERT_|DEPTH_ZERO|UNABLE_TO_VERIFY)/u.test(causeCode)
+      || message.includes('certificate')) {
+    return { category: 'tls', code: causeCode.toLowerCase() || 'tls_error', status: 0, retryable: false };
+  }
+  if (['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE', 'UND_ERR_SOCKET'].includes(causeCode)) {
+    return { category: 'connection', code: causeCode.toLowerCase(), status: 0, retryable: true };
+  }
+  if (message.includes('response exceeds')) {
+    return { category: 'too_large', code: 'response_too_large', status: 0, retryable: false };
+  }
+  if (message.includes('redirect')) {
+    return { category: 'redirect', code: 'redirect_error', status: 0, retryable: false };
+  }
+  if (message.includes('private') || message.includes('local host') || message.includes('unsupported protocol')
+      || message.includes('credentials in url')) {
+    return { category: 'blocked_destination', code: 'blocked_destination', status: 0, retryable: false };
+  }
+  return { category: 'network', code: causeCode.toLowerCase() || 'fetch_failed', status: 0, retryable: true };
+}
+
+function annotatedFetchError(error, attempt) {
+  const detail = fetchFailure(error);
+  const result = error instanceof Error ? error : new Error(String(error));
+  Object.assign(result, detail, { attempts: attempt });
+  return result;
+}
+
+async function safeFetchWithRetry(value, {
+  timeoutMs = 20_000,
+  maxBytes = 5_000_000,
+  attempts = 3,
+  fetchImpl = fetch,
+  wait = sleep,
+  validateUrl = assertPublicUrl,
+} = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      let url = await validateUrl(value);
+      for (let redirects = 0; redirects <= 3; redirects++) {
+        const response = await fetchImpl(url, {
+          redirect: 'manual',
+          headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,text/plain,application/pdf,*/*' },
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if ([301, 302, 303, 307, 308].includes(response.status)) {
+          const location = response.headers.get('location');
+          if (!location) throw new Error(`redirect ${response.status} without location`);
+          url = await validateUrl(new URL(location, url).href);
+          continue;
+        }
+        if (!response.ok) {
+          throw Object.assign(new Error(`HTTP ${response.status}`), {
+            status: response.status,
+            retryAfterMs: retryAfterMs(response),
+          });
+        }
+        const declared = Number(response.headers.get('content-length') || 0);
+        if (declared > maxBytes) throw new Error(`response exceeds ${maxBytes} bytes`);
+        const body = Buffer.from(await response.arrayBuffer());
+        if (body.length > maxBytes) throw new Error(`response exceeds ${maxBytes} bytes`);
+        return { response, body, finalUrl: url.href, attempts: attempt };
+      }
+      throw new Error('too many redirects');
+    } catch (error) {
+      lastError = annotatedFetchError(error, attempt);
+      if (attempt >= attempts || !lastError.retryable) throw lastError;
+      const delay = Number(error?.retryAfterMs || 0) || RETRY_DELAYS_MS[attempt - 1] || RETRY_DELAYS_MS.at(-1);
+      await wait(delay);
+    }
+  }
+  throw lastError;
 }
 
 function robotsAllows(text, pathname) {
@@ -908,12 +998,13 @@ async function watchSources(db, options) {
     const source = sources[index];
     metrics.attempted++;
     try {
-      if (!(await canFetchByRobots(source.url, robotsCache))) {
+      const requestUrl = normalizeSourceUrl(source.url) || source.url;
+      if (!(await canFetchByRobots(requestUrl, robotsCache))) {
         metrics.robotsBlocked++;
         updateFailure.run(options.date, 0, source.fail_count, source.needs_review, source.source_id);
         continue;
       }
-      const { response, body, finalUrl } = await safeFetch(source.url);
+      const { response, body, finalUrl } = await safeFetch(requestUrl);
       const contentType = (response.headers.get('content-type') || '').split(';')[0].toLowerCase();
       if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
       let snapshotText = '';
@@ -945,6 +1036,7 @@ async function watchSources(db, options) {
         changed.push({
           source_id: source.source_id,
           url: source.url,
+          request_url: requestUrl,
           final_url: finalUrl,
           kind: source.kind,
           content_type: contentType,
@@ -965,13 +1057,56 @@ async function watchSources(db, options) {
       metrics.failed++;
       const failCount = Number(source.fail_count) + 1;
       updateFailure.run(options.date, Number(error.status || 0), failCount, failCount >= 3 ? 1 : 0, source.source_id);
-      errors.push({ source_id: source.source_id, url: source.url, error: String(error.message || error) });
+      const detail = fetchFailure(error);
+      errors.push({
+        source_id: source.source_id,
+        url: source.url,
+        request_url: normalizeSourceUrl(source.url) || source.url,
+        error: String(error.message || error),
+        category: detail.category,
+        code: detail.code,
+        status: detail.status || null,
+        attempts: Number(error.attempts || 1),
+        retryable: detail.retryable,
+      });
     }
     if ((index + 1) % 10 === 0 || index + 1 === sources.length) {
       console.error(`[organisation sources] ${index + 1}/${sources.length}`);
     }
   }
   return { metrics, errors, changed };
+}
+
+function failureBreakdown(errors = []) {
+  const http = {};
+  const other = {};
+  for (const error of errors) {
+    const parsedStatus = /^HTTP\s+(\d{3})/iu.exec(String(error.error || ''))?.[1];
+    const status = Number(error.status || parsedStatus || 0);
+    if (status) {
+      http[status] = (http[status] || 0) + 1;
+      continue;
+    }
+    const category = error.category || fetchFailure(new Error(error.error || '')).category;
+    other[category] = (other[category] || 0) + 1;
+  }
+  return { http, other };
+}
+
+function failureDomains(errors = [], limit = 15) {
+  const counts = new Map();
+  for (const error of errors) {
+    try {
+      const hostname = new URL(error.url).hostname.toLowerCase();
+      counts.set(hostname, (counts.get(hostname) || 0) + 1);
+    } catch {
+      // Non-URL failures such as GitHub publication are not website domains.
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([domain, count]) => ({ domain, count }));
 }
 
 function serviceRows(db) {
@@ -1095,6 +1230,20 @@ function digestText(report) {
     gitLine,
   ];
   if (report.errors.length) {
+    const breakdown = failureBreakdown(report.errors);
+    const parts = [
+      ...Object.entries(breakdown.http)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([status, count]) => `HTTP ${status}: ${count}`),
+      ...Object.entries(breakdown.other)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([category, count]) => `${category}: ${count}`),
+    ];
+    if (parts.length) lines.push('', `Failure breakdown: ${parts.join(', ')}`);
+    const domains = failureDomains(report.errors, 5);
+    if (domains.length) {
+      lines.push(`Most affected domains: ${domains.map(({ domain, count }) => `${domain}: ${count}`).join(', ')}`);
+    }
     lines.push('', `Failures (${report.errors.length}):`);
     for (const error of report.errors.slice(0, 10)) lines.push(`- ${error.url}: ${error.error}`);
     if (report.errors.length > 10) lines.push(`- plus ${report.errors.length - 10} more; see the run report`);
@@ -1232,6 +1381,8 @@ async function runPipeline(options) {
       failed: sourceResult.metrics.failed,
       robots_blocked: sourceResult.metrics.robotsBlocked,
       discovered: sourceResult.metrics.discovered,
+      failure_breakdown: failureBreakdown(sourceResult.errors),
+      failure_domains: failureDomains(sourceResult.errors),
     };
     const report = {
       run_id: runId,
@@ -1298,4 +1449,17 @@ if (isMain) {
   else if (options) process.exitCode = await runPipeline(options);
 }
 
-export { applyDirectoryRows, applyWebExtractions, digestText, ensureSchema, inferNeeds, parseArgs, serviceRows };
+export {
+  applyDirectoryRows,
+  applyWebExtractions,
+  digestText,
+  ensureSchema,
+  failureBreakdown,
+  failureDomains,
+  fetchFailure,
+  inferNeeds,
+  normalizeSourceUrl,
+  parseArgs,
+  safeFetchWithRetry,
+  serviceRows,
+};
