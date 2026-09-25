@@ -60,9 +60,23 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
-        // Never let the carer entry fall back to the root app when offline.
-        navigateFallbackDenylist: [/^\/carer\//],
+        // Hashed assets are precached; HTML is deliberately NOT, so a visit always fetches
+        // the current page from the network and only falls back to a cached copy offline.
+        globPatterns: ['**/*.{js,css,svg,png,woff2,webmanifest}'],
+        navigateFallback: null,
+        cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'pages',
+              networkTimeoutSeconds: 4,
+              fetchOptions: { cache: 'no-cache' },
+              expiration: { maxEntries: 8 },
+            },
+          },
+        ],
       },
     }),
     carerManifest(),
