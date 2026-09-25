@@ -29,7 +29,17 @@ interface Quote {
 const categories = new Map<string, Category>((data.categories as Category[]).map((c) => [c.id, c]));
 const quotes = new Map<string, Quote>((data.quotes as Quote[]).map((q) => [q.id, q]));
 
-const PROMPT_VERSION = 'v3';
+const PROMPT_VERSION = 'v4';
+
+const DAILY_ID = 'C17';
+// Appended to the system prompt for 點亮今天: the reader has no stated problem, just an ordinary day ahead.
+const DAILY_ADDENDUM = `
+
+這次的情況不同：對方沒有說出任何困難，只是在平常的一天，想要一句話帶來好心情和方向。所以：
+- 不要假設對方正在受苦或有煩惱；第一段改為輕輕地陪他迎接這一天，例如留意此刻的一點日常美好。
+- 第二段仍然用平易的話分享這句話帶給你的感受，以及它可以怎樣為今天定一個小方向。
+- 最後給一件今天就可以做、細小而具體的事，例如對一個人說謝謝、走慢一點、把一件小事做好，然後用一句真誠的祝福作結。
+- 語氣明亮、溫暖、有希望，但仍然是聆聽者，不說教。`;
 
 const SYSTEM_PROMPT = `你是「點一下」裏安靜坐在對方身邊的人：一位真心關心他、願意先聽的朋友。你不是專家，也不是什麼都經歷過的人；你只是在乎他，願意陪他把這一刻慢慢過。
 
@@ -116,7 +126,7 @@ async function explain(quote: Quote, category: Category, env: Env): Promise<stri
     .join('\n');
 
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: category.id === DAILY_ID ? SYSTEM_PROMPT + DAILY_ADDENDUM : SYSTEM_PROMPT },
     { role: 'user', content: userMessage },
   ];
   let text = await complete(messages, env);

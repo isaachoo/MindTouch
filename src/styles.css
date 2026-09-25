@@ -175,6 +175,106 @@ body {
   margin: 24px 0 0;
 }
 
+/* ---- 點亮今天 ---- */
+.daily-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 18px 20px;
+  border: 0;
+  border-radius: 22px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(196, 113, 95, 0.3);
+  margin-bottom: 18px;
+  transition: transform 0.15s ease;
+}
+
+.daily-hero:active {
+  transform: scale(0.99);
+}
+
+.daily-icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.daily-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.daily-title {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.25rem;
+  letter-spacing: 0.06em;
+}
+
+.daily-sub {
+  font-size: 0.85rem;
+  opacity: 0.92;
+  line-height: 1.45;
+}
+
+.daily-arrow {
+  margin-left: auto;
+  font-size: 1.3rem;
+  opacity: 0.9;
+}
+
+.or-line {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0 0 10px;
+}
+
+.date-line {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0 0 8px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.chip-row .situation-chip {
+  margin: 0;
+}
+
+.soft-link {
+  align-self: center;
+  margin-top: 22px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--accent-deep);
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.soft-link:active {
+  background: var(--accent-soft);
+}
+
 /* ---- app switcher tabs ---- */
 .app-tabs {
   display: flex;

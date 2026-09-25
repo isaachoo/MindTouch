@@ -5,9 +5,10 @@ import { useInstall } from './useInstall';
 interface Props {
   categories: Category[];
   onPick: (id: string) => void;
+  onDaily: () => void;
 }
 
-export default function Home({ categories, onPick }: Props) {
+export default function Home({ categories, onPick, onDaily }: Props) {
   const install = useInstall();
 
   return (
@@ -23,8 +24,26 @@ export default function Home({ categories, onPick }: Props) {
           </svg>
         </span>
         <h1>點一下</h1>
-        <p className="tagline">你現在的處境是……</p>
+        <p className="tagline">今天，想要一句怎樣的話？</p>
       </header>
+
+      <button type="button" className="daily-hero" onClick={onDaily}>
+        <span className="daily-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <circle cx="12" cy="12" r="4.5" fill="currentColor" />
+            <g stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />
+            </g>
+          </svg>
+        </span>
+        <span className="daily-text">
+          <span className="daily-title">點亮今天</span>
+          <span className="daily-sub">不用選處境。一句話，給你方向和好心情。</span>
+        </span>
+        <span className="daily-arrow" aria-hidden="true">→</span>
+      </button>
+
+      <p className="or-line">或者，針對你現在的處境……</p>
 
       <section className="card list-card" aria-label="處境">
         <ul className="situations">

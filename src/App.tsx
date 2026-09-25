@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { categories, findCategory, randomQuote } from './data';
+import { DAILY_ID, dailyCategory, findCategory, randomQuote, situations } from './data';
 import Home from './Home';
 import QuoteView from './QuoteView';
 
@@ -16,22 +16,25 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
 
-  const category = findCategory(route);
-  // A new quote is drawn each time the user enters a situation.
-  const quote = useMemo(() => (category ? randomQuote(category.id) : undefined), [category]);
+  const isDaily = route === 'today';
+  const category = isDaily ? dailyCategory : route === DAILY_ID ? undefined : findCategory(route);
+  // A new quote is drawn each time the user enters a situation or taps 點亮今天.
+  const quote = useMemo(() => (category ? randomQuote(category.id) : undefined), [category, route]);
+
+  const goBack = () => {
+    if (window.history.length > 1) window.history.back();
+    else window.location.hash = '';
+  };
 
   if (category && quote) {
-    return (
-      <QuoteView
-        category={category}
-        quote={quote}
-        onBack={() => {
-          if (window.history.length > 1) window.history.back();
-          else window.location.hash = '';
-        }}
-      />
-    );
+    return <QuoteView category={category} quote={quote} daily={isDaily} onBack={goBack} />;
   }
 
-  return <Home categories={categories} onPick={(id) => (window.location.hash = `/${id}`)} />;
+  return (
+    <Home
+      categories={situations}
+      onPick={(id) => (window.location.hash = `/${id}`)}
+      onDaily={() => (window.location.hash = '/today')}
+    />
+  );
 }

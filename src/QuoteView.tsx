@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchExplanation } from './explain';
 import Thinking, { estimateMs, recordDuration } from './Thinking';
-import type { Category, Quote } from './data';
+import { directionFor, type Category, type Quote } from './data';
 
 interface Props {
   category: Category;
   quote: Quote;
   onBack: () => void;
+  daily?: boolean;
 }
 
-export default function QuoteView({ category, quote, onBack }: Props) {
+function todayLabel(): string {
+  const d = new Date();
+  const weekday = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+  return `${d.getMonth() + 1}月${d.getDate()}日 · 星期${weekday}`;
+}
+
+export default function QuoteView({ category, quote, onBack, daily = false }: Props) {
   const [showMore, setShowMore] = useState(false);
   const showOriginal = quote.orig.trim() !== quote.zh.trim();
 
@@ -51,8 +58,20 @@ export default function QuoteView({ category, quote, onBack }: Props) {
       </header>
 
       <article className="card quote-card" key={quote.id}>
-        <p className="situation-chip">{category.label}</p>
-        <h2 className="need">{category.need}</h2>
+        {daily ? (
+          <>
+            <p className="date-line">{todayLabel()}</p>
+            <div className="chip-row">
+              <p className="situation-chip">☀ 點亮今天</p>
+              <p className="situation-chip direction">今天的方向 · {directionFor(quote)}</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="situation-chip">{category.label}</p>
+            <h2 className="need">{category.need}</h2>
+          </>
+        )}
 
         <blockquote className="quote">
           <p className="quote-zh" lang="zh-Hant">
@@ -133,6 +152,12 @@ export default function QuoteView({ category, quote, onBack }: Props) {
           </dl>
         )}
       </article>
+
+      {daily && (
+        <button type="button" className="soft-link" onClick={onBack}>
+          想針對某個處境？選一個 →
+        </button>
+      )}
     </main>
   );
 }
