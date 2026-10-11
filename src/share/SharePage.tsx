@@ -341,11 +341,6 @@ export default function SharePage({ admin = false }: Props) {
                     刪除
                   </button>
                 )}
-                {!admin && tokens[p.id] && (
-                  <button type="button" className="link-btn" onClick={() => void hide(p)}>
-                    刪除
-                  </button>
-                )}
                 <button type="button" className="link-btn" onClick={() => toggle(p.id)} aria-expanded={open.has(p.id)}>
                   原文
                 </button>
