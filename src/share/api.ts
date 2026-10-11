@@ -43,8 +43,8 @@ export async function submitPost(text: string, name: string): Promise<{ post: Po
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, name }),
     });
-  } catch {
-    throw new SubmitFailure('network');
+  } catch (err) {
+    throw new SubmitFailure('network', '', `browser: ${err instanceof Error ? err.message : String(err)}`);
   }
   if (res.ok) return (await res.json()) as { post: Post; deleteToken: string };
   const body = (await res.json().catch(() => ({}))) as { error?: string; reason?: string; detail?: string };

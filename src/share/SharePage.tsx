@@ -152,7 +152,7 @@ export default function SharePage({ admin = false }: Props) {
       window.setTimeout(() => setStatus((s) => (s.kind === 'ok' ? { kind: 'idle' } : s)), 4000);
     } catch (err) {
       const kind = err instanceof SubmitFailure ? err.kind : 'network';
-      const detail = err instanceof SubmitFailure && err.detail ? `（${err.detail}）` : '';
+      const detail = err instanceof SubmitFailure && err.detail ? `（${err.detail}）` : '（v3）';
       setStatus({ kind: 'error', message: ERRORS[kind] + detail });
     }
   };
