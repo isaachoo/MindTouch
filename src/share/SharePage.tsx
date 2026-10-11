@@ -93,6 +93,12 @@ export default function SharePage({ admin = false }: Props) {
   });
   const textRef = useRef<HTMLTextAreaElement>(null);
 
+  // Lavender theme while this page is open (tokens live on :root).
+  useEffect(() => {
+    document.documentElement.setAttribute('data-app', 'share');
+    return () => document.documentElement.removeAttribute('data-app');
+  }, []);
+
   const load = async (before?: number) => {
     try {
       setLoadError(false);

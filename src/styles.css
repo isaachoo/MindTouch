@@ -275,6 +275,44 @@ body {
   background: var(--accent-soft);
 }
 
+/* ---- 你也分享: lavender accent, applied while that page is open ---- */
+:root[data-app='share'] {
+  --bg: #f6f3fa;
+  --bg-glow-1: rgba(205, 190, 235, 0.55);
+  --bg-glow-2: rgba(240, 220, 235, 0.6);
+  --card: #fdfcff;
+  --card-border: rgba(90, 70, 120, 0.09);
+  --text: #332b3d;
+  --muted: #786b8a;
+  --accent: #9b84c4;
+  --accent-deep: #7b63a8;
+  --accent-soft: #ece6f5;
+  --divider: rgba(90, 70, 120, 0.12);
+  --shadow: 0 10px 30px rgba(90, 70, 120, 0.1), 0 1px 2px rgba(90, 70, 120, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-app='share']:not([data-theme='light']) {
+    --bg: #1d1a24;
+    --bg-glow-1: rgba(140, 110, 190, 0.28);
+    --bg-glow-2: rgba(170, 120, 160, 0.2);
+    --card: #27222f;
+    --card-border: rgba(220, 205, 240, 0.08);
+    --text: #efeaf6;
+    --muted: #ada3bf;
+    --accent: #b39ddb;
+    --accent-deep: #c5b3e6;
+    --accent-soft: #332c40;
+    --divider: rgba(220, 205, 240, 0.1);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+:root[data-app='share'] .send,
+:root[data-app='share'] .tell-more {
+  box-shadow: 0 6px 18px rgba(123, 99, 168, 0.28);
+}
+
 /* ---- 你也分享 ---- */
 .share-brand {
   padding: 14px 0 10px;
