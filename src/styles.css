@@ -324,25 +324,27 @@ body {
 
 .mottos {
   display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 6px 14px;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 4px;
   margin: 0 0 16px;
-  padding: 0 4px;
+  padding: 0 2px;
+  white-space: nowrap;
 }
 
+/* One line on every phone: the size follows the screen width (about 9.5px on a 360px
+   phone, 12.8px from 480px up). Icons would not fit, so they are not rendered. */
 .motto {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: clamp(0.58rem, 2.62vw, 0.8rem);
   font-weight: 500;
+  letter-spacing: -0.015em;
 }
 
 .motto-icon {
-  color: var(--accent);
-  display: inline-flex;
+  display: none;
 }
 
 .compose {
