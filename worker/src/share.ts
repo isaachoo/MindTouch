@@ -41,6 +41,7 @@ const SYSTEM_PROMPT = `你是「你也分享」的審稿助手。使用者會寫
   "relevant": true 或 false,
   "mottos": ["learn","smile","brighten","appreciate"] 的子集，放所有合理符合的，relevant 為 false 時為空陣列,
   "rewrite": 用使用者原本的語言和語氣（廣東話就廣東話、英文就英文、書面語就書面語）輕輕修飾成通順、溫暖的一至四句，第一人稱，保留所有意思和事實，可以把分行合併成段落，不加入原文沒有的內容，不說教，不加表情符號；relevant 為 false 時為空字串,
+  "tags": 2 至 4 個簡短的話題標籤，用原文的語言，描述內容講甚麼（例如 ["目的","做事","反思"] 或 ["neighbour","kindness"]），每個最多 8 個字，不含 # 號；relevant 為 false 時為空陣列,
   "lang": 原文語言代碼，例如 "yue"、"zh-Hant"、"en",
   "safe": true 或 false —— 以下任何一項為 false：粗言穢語、侮辱、仇恨或歧視言論、性內容、騷擾或威脅、政治攻擊、個人資料（電話、電郵、地址、他人全名）、廣告或推銷、明顯的垃圾訊息,
   "name_safe": true 或 false —— 提供的名字是否可以公開顯示（同上標準；空名字為 true）,
@@ -75,6 +76,7 @@ interface Verdict {
   relevant: boolean;
   mottos: Motto[];
   rewrite: string;
+  tags: string[];
   lang: string;
   safe: boolean;
   name_safe: boolean;
@@ -115,6 +117,13 @@ async function judge(text: string, name: string, env: ShareEnv): Promise<Verdict
     relevant: v.relevant === true && mottos.length > 0,
     mottos,
     rewrite: typeof v.rewrite === 'string' ? v.rewrite.trim() : '',
+    tags: Array.isArray(v.tags)
+      ? v.tags
+          .filter((t): t is string => typeof t === 'string')
+          .map((t) => t.replace(/^#+/, '').replace(/\s+/g, '').trim().slice(0, 12))
+          .filter(Boolean)
+          .slice(0, 4)
+      : [],
     lang: typeof v.lang === 'string' ? v.lang.slice(0, 12) : '',
     safe: v.safe === true,
     name_safe: v.name_safe !== false,
@@ -129,6 +138,7 @@ interface PostRow {
   original: string;
   rewrite: string;
   mottos: string;
+  tags: string;
   hidden: number;
 }
 
@@ -140,6 +150,7 @@ function publicPost(r: PostRow, admin = false) {
     rewrite: r.rewrite,
     original: r.original,
     mottos: JSON.parse(r.mottos) as Motto[],
+    tags: JSON.parse(r.tags || '[]') as string[],
   };
   if (admin) p.hidden = r.hidden === 1;
   return p;
@@ -170,7 +181,7 @@ async function shareHealth(env: ShareEnv): Promise<Record<string, unknown>> {
   }
   try {
     const v = await judge('今日我幫阿婆拎咗袋嘢上樓，佢多謝咗我好多次。', 'Test', env);
-    out.judge = { ok: true, relevant: v.relevant, mottos: v.mottos, safe: v.safe, rewrite: v.rewrite.slice(0, 80) };
+    out.judge = { ok: true, relevant: v.relevant, mottos: v.mottos, tags: v.tags, safe: v.safe, rewrite: v.rewrite.slice(0, 80) };
   } catch (e) {
     out.judge = { ok: false, error: String(e).slice(0, 400) };
   }
@@ -192,14 +203,14 @@ export async function handleShare(request: Request, url: URL, env: ShareEnv, hea
     const includeHidden = admin && url.searchParams.get('all') === '1';
     const rows = await db
       .prepare(
-        `SELECT id, created_at, name, original, rewrite, mottos, hidden FROM posts
+        `SELECT id, created_at, name, original, rewrite, mottos, tags, hidden FROM posts
          WHERE id < ?1 ${includeHidden ? '' : 'AND hidden = 0'} ORDER BY id DESC LIMIT ?2`,
       )
       .bind(before, PAGE_SIZE + 1)
       .all<PostRow>();
     const list = rows.results ?? [];
     const hasMore = list.length > PAGE_SIZE;
-    return json({ posts: list.slice(0, PAGE_SIZE).map((r) => publicPost(r, admin)), hasMore }, 200, headers);
+    return json({ posts: list.slice(0, PAGE_SIZE).map((r) => publicPost(r, admin)), hasMore, admin }, 200, headers);
   }
 
   // ---- create
@@ -262,18 +273,22 @@ export async function handleShare(request: Request, url: URL, env: ShareEnv, hea
     const deleteToken = randomToken();
     const inserted = await db
       .prepare(
-        `INSERT INTO posts (created_at, name, original, rewrite, mottos, lang, ip_hash, delete_token)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) RETURNING id, created_at, name, original, rewrite, mottos, hidden`,
+        `INSERT INTO posts (created_at, name, original, rewrite, mottos, tags, lang, ip_hash, delete_token)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) RETURNING id, created_at, name, original, rewrite, mottos, tags, hidden`,
       )
-      .bind(now.toISOString(), name, text, verdict.rewrite, JSON.stringify(verdict.mottos), verdict.lang, ipHash, deleteToken)
+      .bind(now.toISOString(), name, text, verdict.rewrite, JSON.stringify(verdict.mottos), JSON.stringify(verdict.tags), verdict.lang, ipHash, deleteToken)
       .first<PostRow>();
     await log('posted');
     return json({ post: publicPost(inserted!), deleteToken }, 201, headers);
   }
 
-  // ---- hide (own post via delete token, or admin)
+  // ---- hide (own post via delete token, or admin); admin may delete permanently with ?permanent=1
   if (request.method === 'DELETE' && id !== null) {
     const token = request.headers.get('X-Delete-Token') ?? '';
+    if (admin && url.searchParams.get('permanent') === '1') {
+      const r = await db.prepare(`DELETE FROM posts WHERE id = ?1`).bind(id).run();
+      return r.meta.changes ? json({ ok: true, deleted: true }, 200, headers) : json({ error: 'not found' }, 404, headers);
+    }
     const res = admin
       ? await db.prepare(`UPDATE posts SET hidden = 1 WHERE id = ?1`).bind(id).run()
       : await db.prepare(`UPDATE posts SET hidden = 1 WHERE id = ?1 AND delete_token = ?2 AND ?2 <> ''`).bind(id, token).run();

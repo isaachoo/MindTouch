@@ -9,6 +9,7 @@ export interface Post {
   rewrite: string;
   original: string;
   mottos: Motto[];
+  tags: string[];
   hidden?: boolean;
 }
 
@@ -20,13 +21,18 @@ export class SubmitFailure extends Error {
   }
 }
 
-export async function listPosts(before?: number, adminToken?: string): Promise<{ posts: Post[]; hasMore: boolean }> {
+export async function listPosts(before?: number, adminToken?: string): Promise<{ posts: Post[]; hasMore: boolean; admin: boolean }> {
   const u = new URL(`${BASE}/share/posts`);
   if (before) u.searchParams.set('before', String(before));
   if (adminToken) u.searchParams.set('all', '1');
   const res = await fetch(u.toString(), { headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : {} });
   if (!res.ok) throw new Error(`list failed: ${res.status}`);
-  return (await res.json()) as { posts: Post[]; hasMore: boolean };
+  return (await res.json()) as { posts: Post[]; hasMore: boolean; admin: boolean };
+}
+
+export async function deletePostPermanently(id: number, adminToken: string): Promise<void> {
+  const res = await fetch(`${BASE}/share/posts/${id}?permanent=1`, { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } });
+  if (!res.ok) throw new Error(`delete failed: ${res.status}`);
 }
 
 export async function submitPost(text: string, name: string): Promise<{ post: Post; deleteToken: string }> {

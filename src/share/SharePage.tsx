@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import AppTabs from '../AppTabs';
 import { MOTTOS, MOTTO_LABEL } from './mottos';
-import { hidePost, listPosts, restorePost, submitPost, SubmitFailure, type Post } from './api';
+import { deletePostPermanently, hidePost, listPosts, restorePost, submitPost, SubmitFailure, type Post } from './api';
 
 const TEXT_MAX = 300;
 const NAME_MAX = 30;
@@ -92,6 +92,8 @@ export default function SharePage({ admin = false }: Props) {
     }
   });
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const [adminError, setAdminError] = useState('');
+  const [actionError, setActionError] = useState('');
 
   // Lavender theme while this page is open (tokens live on :root).
   useEffect(() => {
@@ -103,6 +105,18 @@ export default function SharePage({ admin = false }: Props) {
     try {
       setLoadError(false);
       const r = await listPosts(before, admin ? adminToken : undefined);
+      if (admin && !r.admin) {
+        // Wrong password: the server answered as a normal visitor.
+        setAdminError('密碼不正確，請再試一次。');
+        try {
+          sessionStorage.removeItem(ADMIN_KEY);
+        } catch {
+          /* ignore */
+        }
+        setAdminToken('');
+        setPosts([]);
+        return;
+      }
       setPosts((p) => (before ? [...p, ...r.posts] : r.posts));
       setHasMore(r.hasMore);
     } catch (err) {
@@ -143,23 +157,45 @@ export default function SharePage({ admin = false }: Props) {
     }
   };
 
-  const hide = async (p: Post) => {
+  const act = async (label: string, fn: () => Promise<void>) => {
+    setActionError('');
     try {
-      await hidePost(p.id, admin ? { adminToken } : { deleteToken: tokens[p.id] });
-      if (admin) setPosts((list) => list.map((x) => (x.id === p.id ? { ...x, hidden: true } : x)));
-      else setPosts((list) => list.filter((x) => x.id !== p.id));
+      await fn();
     } catch (err) {
       console.error(err);
+      setActionError(`${label}失敗，請重新整理後再試。`);
     }
   };
 
-  const restore = async (p: Post) => {
-    try {
+  const hide = (p: Post) =>
+    act('隱藏', async () => {
+      await hidePost(p.id, admin ? { adminToken } : { deleteToken: tokens[p.id] });
+      if (admin) setPosts((list) => list.map((x) => (x.id === p.id ? { ...x, hidden: true } : x)));
+      else setPosts((list) => list.filter((x) => x.id !== p.id));
+    });
+
+  const restore = (p: Post) =>
+    act('恢復', async () => {
       await restorePost(p.id, adminToken);
       setPosts((list) => list.map((x) => (x.id === p.id ? { ...x, hidden: false } : x)));
-    } catch (err) {
-      console.error(err);
+    });
+
+  const remove = (p: Post) => {
+    if (!window.confirm('永久刪除這篇分享？此操作無法復原。')) return;
+    void act('刪除', async () => {
+      await deletePostPermanently(p.id, adminToken);
+      setPosts((list) => list.filter((x) => x.id !== p.id));
+    });
+  };
+
+  const logout = () => {
+    try {
+      sessionStorage.removeItem(ADMIN_KEY);
+    } catch {
+      /* ignore */
     }
+    setAdminToken('');
+    setPosts([]);
   };
 
   const toggle = (id: number) =>
@@ -195,22 +231,45 @@ export default function SharePage({ admin = false }: Props) {
           <div className="compose-row">
             <input
               type="password"
-              placeholder="輸入密碼"
+              placeholder="輸入密碼後按 Enter 或「進入」"
+              autoComplete="current-password"
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const v = (e.target as HTMLInputElement).value;
-                  try {
-                    sessionStorage.setItem(ADMIN_KEY, v);
-                  } catch {
-                    /* ignore */
-                  }
-                  setAdminToken(v);
-                }
+                if (e.key === 'Enter') (e.currentTarget.nextElementSibling as HTMLButtonElement | null)?.click();
               }}
             />
+            <button
+              type="button"
+              className="send"
+              onClick={(e) => {
+                const input = (e.currentTarget.previousElementSibling as HTMLInputElement | null) ?? null;
+                const v = (input?.value ?? '').trim();
+                if (!v) return;
+                try {
+                  sessionStorage.setItem(ADMIN_KEY, v);
+                } catch {
+                  /* ignore */
+                }
+                setAdminError('');
+                setLoading(true);
+                setAdminToken(v);
+              }}
+            >
+              進入
+            </button>
           </div>
+          {adminError && <p className="compose-note error">{adminError}</p>}
         </section>
       )}
+
+      {admin && adminToken && (
+        <p className="admin-bar">
+          管理員模式
+          <button type="button" className="link-btn" onClick={logout}>
+            登出
+          </button>
+        </p>
+      )}
+      {actionError && <p className="compose-note error">{actionError}</p>}
 
       {!admin && (
         <section className="card compose">
@@ -254,6 +313,13 @@ export default function SharePage({ admin = false }: Props) {
                 </span>
               ))}
             </div>
+            {p.tags && p.tags.length > 0 && (
+              <p className="tags">
+                {p.tags.map((t) => (
+                  <span key={t}>#{t}</span>
+                ))}
+              </p>
+            )}
             <div className="post-meta">
               <span>
                 {p.name || '匿名'} · {formatDate(p.createdAt)}
@@ -268,6 +334,11 @@ export default function SharePage({ admin = false }: Props) {
                 {admin && p.hidden && (
                   <button type="button" className="link-btn" onClick={() => void restore(p)}>
                     恢復
+                  </button>
+                )}
+                {admin && (
+                  <button type="button" className="link-btn danger" onClick={() => remove(p)}>
+                    刪除
                   </button>
                 )}
                 {!admin && tokens[p.id] && (
