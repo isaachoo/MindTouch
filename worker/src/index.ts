@@ -2,12 +2,16 @@
 // explanation via OpenRouter. The API key lives only here, as a secret.
 import data from '../../src/data/quotes.json';
 import { CARER_PROMPT_VERSION, explainCarer, findServices, lookupCarerQuote } from './carer';
+import { handleShare } from './share';
 
 interface Env {
   OPENROUTER_API_KEY: string;
   MODEL: string;
   ALLOWED_ORIGINS: string;
   CARERS_BASE?: string;
+  SHARE_DB: D1Database;
+  SHARE_ADMIN_TOKEN?: string;
+  OPENROUTER_BASE?: string;
 }
 
 interface Category {
@@ -66,8 +70,8 @@ function cors(origin: string | null, env: Env): HeadersInit {
   const ok = origin && allowed.includes(origin) ? origin : allowed[0];
   return {
     'Access-Control-Allow-Origin': ok,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Delete-Token',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -276,6 +280,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     if (url.pathname === '/health' && request.method === 'GET') return json(await health(env), 200, headers);
     if (url.pathname.startsWith('/carer/')) return handleCarer(request, url, env, ctx, headers);
+    if (url.pathname.startsWith('/share/')) return handleShare(request, url, env, headers);
     if (url.pathname !== '/explain') return json({ error: 'not found' }, 404, headers);
     if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405, headers);
 

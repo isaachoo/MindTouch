@@ -11,3 +11,5 @@ data/carers/*
 data/carers/published/*
 !data/carers/published/services.json
 !data/carers/published/services.csv
+worker/.wrangler/
+__pycache__/

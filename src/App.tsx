@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DAILY_ID, dailyCategory, findCategory, randomQuote, situations } from './data';
 import Home from './Home';
 import QuoteView from './QuoteView';
+import SharePage from './share/SharePage';
 
 function readHash(): string {
   return decodeURIComponent(window.location.hash.replace(/^#\/?/, ''));
@@ -20,6 +21,9 @@ export default function App() {
   const category = isDaily ? dailyCategory : route === DAILY_ID ? undefined : findCategory(route);
   // A new quote is drawn each time the user enters a situation or taps 點亮今天.
   const quote = useMemo(() => (category ? randomQuote(category.id) : undefined), [category, route]);
+
+  if (route === 'share') return <SharePage />;
+  if (route === 'share/admin') return <SharePage admin />;
 
   const goBack = () => {
     if (window.history.length > 1) window.history.back();

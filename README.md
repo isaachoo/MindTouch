@@ -129,3 +129,14 @@ successfully on the same Hong Kong date.
 The final stage creates a GitHub pull request containing `services.json` and `services.csv`, and requests
 automatic merge after repository checks pass. Operational state, credentials, snapshots and logs remain
 ignored by Git.
+
+## 你也分享 (`/#/share`)
+
+Public wall where anyone writes one thing they did today. The Worker (`worker/src/share.ts`) asks the
+model, in one call, whether the text matches any of the four mottos (Learn something / Share a smile /
+Brighten someone / Appreciate anything), rewrites it gently in the writer's own language, and screens
+it for offensive content, personal data and advertising. Only relevant, safe posts are stored in the
+D1 database `mindtouch-share` (migrations in `worker/migrations/`). Limits: 300 characters, 5 posts per
+IP per day, no repeated text within 24 h, no URLs/phones/emails. Writers can delete their own posts
+from the same phone. Admin page: `/#/share/admin` (password = GitHub secret `SHARE_ADMIN_TOKEN`) to hide
+or restore any post. The deploy workflow creates the database on first run and applies migrations.
