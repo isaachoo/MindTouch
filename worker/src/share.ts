@@ -88,7 +88,6 @@ async function judge(text: string, name: string, env: ShareEnv): Promise<Verdict
       max_tokens: 600,
       temperature: 0.3,
       reasoning: { enabled: false },
-      response_format: { type: 'json_object' },
     }),
   });
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 200)}`);
@@ -146,7 +145,28 @@ function isAdmin(request: Request, env: ShareEnv): boolean {
   return Boolean(env.SHARE_ADMIN_TOKEN) && auth === `Bearer ${env.SHARE_ADMIN_TOKEN}`;
 }
 
+// GET /share/health: checks the database binding and a sample classification. Never returns secrets.
+async function shareHealth(env: ShareEnv): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { dbBound: Boolean(env.SHARE_DB), adminTokenSet: Boolean(env.SHARE_ADMIN_TOKEN), keySet: Boolean(env.OPENROUTER_API_KEY), model: env.MODEL };
+  if (env.SHARE_DB) {
+    try {
+      const r = await env.SHARE_DB.prepare('SELECT COUNT(*) AS n FROM posts').first<{ n: number }>();
+      out.db = { ok: true, posts: r?.n ?? 0 };
+    } catch (e) {
+      out.db = { ok: false, error: String(e).slice(0, 300) };
+    }
+  }
+  try {
+    const v = await judge('今日我幫阿婆拎咗袋嘢上樓，佢多謝咗我好多次。', 'Test', env);
+    out.judge = { ok: true, relevant: v.relevant, mottos: v.mottos, safe: v.safe, rewrite: v.rewrite.slice(0, 80) };
+  } catch (e) {
+    out.judge = { ok: false, error: String(e).slice(0, 400) };
+  }
+  return out;
+}
+
 export async function handleShare(request: Request, url: URL, env: ShareEnv, headers: HeadersInit): Promise<Response> {
+  if (url.pathname === '/share/health' && request.method === 'GET') return json(await shareHealth(env), 200, headers);
   if (!env.SHARE_DB) return json({ error: 'database not configured' }, 503, headers);
   const db = env.SHARE_DB;
   const admin = isAdmin(request, env);

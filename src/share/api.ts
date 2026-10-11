@@ -15,7 +15,7 @@ export interface Post {
 export type SubmitError = 'unrelated' | 'unsafe' | 'duplicate' | 'rate_limited' | 'too_long' | 'network';
 
 export class SubmitFailure extends Error {
-  constructor(public kind: SubmitError, public reason = '') {
+  constructor(public kind: SubmitError, public reason = '', public detail = '') {
     super(kind);
   }
 }
@@ -41,9 +41,9 @@ export async function submitPost(text: string, name: string): Promise<{ post: Po
     throw new SubmitFailure('network');
   }
   if (res.ok) return (await res.json()) as { post: Post; deleteToken: string };
-  const body = (await res.json().catch(() => ({}))) as { error?: string; reason?: string };
+  const body = (await res.json().catch(() => ({}))) as { error?: string; reason?: string; detail?: string };
   const kind = (['unrelated', 'unsafe', 'duplicate', 'rate_limited', 'too_long'] as SubmitError[]).find((k) => k === body.error) ?? 'network';
-  throw new SubmitFailure(kind, body.reason ?? '');
+  throw new SubmitFailure(kind, body.reason ?? '', kind === 'network' ? `${res.status} ${body.error ?? ''} ${body.detail ?? ''}`.trim() : '');
 }
 
 export async function hidePost(id: number, auth: { deleteToken?: string; adminToken?: string }): Promise<void> {
