@@ -11,7 +11,7 @@ const ADMIN_KEY = 'share-admin';
 
 const ERRORS: Record<string, string> = {
   unrelated: '這段似乎和四件事無關。試試寫你今天學到、分享、照亮或感恩的事。',
-  unsafe: '這段內容未能刊登。請避免冒犯字眼、個人資料或網址。',
+  unsafe: '這段內容未能刊登。請避免冒犯字眼或廣告。',
   duplicate: '這段剛剛已經分享過了。',
   rate_limited: '今天已經分享了 5 次，明天再來吧。',
   too_long: '內容太長了，請縮短一點。',
@@ -141,14 +141,14 @@ export default function SharePage({ admin = false }: Props) {
     if (!t || status.kind === 'sending') return;
     setStatus({ kind: 'sending' });
     try {
-      const { post, deleteToken } = await submitPost(t, name.trim());
+      const { post, deleteToken, masked } = await submitPost(t, name.trim());
       const next = { ...tokens, [post.id]: deleteToken };
       setTokens(next);
       writeJson(TOKENS_KEY, next);
       writeJson(NAME_KEY, name.trim());
       setPosts((p) => [post, ...p]);
       setText('');
-      setStatus({ kind: 'ok', message: '已分享。謝謝你。' });
+      setStatus({ kind: 'ok', message: masked ? '已分享。為保護私隱，部分個人資料已隱藏。' : '已分享。謝謝你。' });
       window.setTimeout(() => setStatus((s) => (s.kind === 'ok' ? { kind: 'idle' } : s)), 4000);
     } catch (err) {
       const kind = err instanceof SubmitFailure ? err.kind : 'network';

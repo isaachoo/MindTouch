@@ -35,7 +35,7 @@ export async function deletePostPermanently(id: number, adminToken: string): Pro
   if (!res.ok) throw new Error(`delete failed: ${res.status}`);
 }
 
-export async function submitPost(text: string, name: string): Promise<{ post: Post; deleteToken: string }> {
+export async function submitPost(text: string, name: string): Promise<{ post: Post; deleteToken: string; masked?: boolean }> {
   let res: Response;
   try {
     res = await fetch(`${BASE}/share/posts`, {
@@ -46,7 +46,7 @@ export async function submitPost(text: string, name: string): Promise<{ post: Po
   } catch (err) {
     throw new SubmitFailure('network', '', `browser: ${err instanceof Error ? err.message : String(err)}`);
   }
-  if (res.ok) return (await res.json()) as { post: Post; deleteToken: string };
+  if (res.ok) return (await res.json()) as { post: Post; deleteToken: string; masked?: boolean };
   const body = (await res.json().catch(() => ({}))) as { error?: string; reason?: string; detail?: string };
   const kind = (['unrelated', 'unsafe', 'duplicate', 'rate_limited', 'too_long'] as SubmitError[]).find((k) => k === body.error) ?? 'network';
   throw new SubmitFailure(kind, body.reason ?? '', kind === 'network' ? `${res.status} ${body.error ?? ''} ${body.detail ?? ''}`.trim() : '');

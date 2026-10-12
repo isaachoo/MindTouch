@@ -24,7 +24,24 @@ const NAME_MAX = 30;
 const DAILY_LIMIT = 5;
 const PAGE_SIZE = 20;
 
-const CONTACT_RE = /(https?:\/\/|www\.|[a-z0-9.-]+\.(com|hk|net|org|io|co|me|app)\b|@[a-z0-9_]{3,}|\b\d{4}[\s-]?\d{4}\b|\+852|\b\d{8,}\b|[\w.+-]+@[\w-]+\.[\w.]+)/i;
+// Contact details are never published. They are masked before the model sees the text and
+// again in what gets stored, so a genuine post with a phone number still goes through.
+const MASK = '＊＊＊';
+const CONTACT_PATTERNS: RegExp[] = [
+  /[\w.+-]+@[\w-]+\.[\w.]+/gi, // email
+  /\b(?:https?:\/\/|www\.)\S+/gi, // url
+  /\b[a-z0-9-]+\.(?:com|hk|net|org|io|co|me|app)\b\S*/gi, // bare domain
+  /\+?852[\s-]?\d{4}[\s-]?\d{4}\b/g, // hk phone with country code
+  /\b\d{4}[\s-]?\d{4}\b/g, // hk phone
+  /\b\d{8,}\b/g, // long digit runs
+  /@[a-z0-9_.]{3,}/gi, // handles
+];
+
+function maskContacts(text: string): { text: string; masked: boolean } {
+  let out = text;
+  for (const re of CONTACT_PATTERNS) out = out.replace(re, MASK);
+  return { text: out, masked: out !== text };
+}
 
 const SYSTEM_PROMPT = `你是「你也分享」的審稿助手。使用者會寫下自己今天做過、學到或感受到的一件小事。四個 motto 是：
 - learn：Learn something —— 學到新知識或技能，也包括任何個人的領悟、反思、想通了一件事、對人生或做事方式的體會。
@@ -40,10 +57,12 @@ const SYSTEM_PROMPT = `你是「你也分享」的審稿助手。使用者會寫
 {
   "relevant": true 或 false,
   "mottos": ["learn","smile","brighten","appreciate"] 的子集，放所有合理符合的，relevant 為 false 時為空陣列,
-  "rewrite": 用使用者原本的語言和語氣（廣東話就廣東話、英文就英文、書面語就書面語）輕輕修飾成通順、溫暖的一至四句，第一人稱，保留所有意思和事實，可以把分行合併成段落，不加入原文沒有的內容，不說教，不加表情符號；relevant 為 false 時為空字串,
+  "rewrite": 用使用者原本的語言和語氣（廣東話就廣東話、英文就英文、書面語就書面語）輕輕修飾成通順、溫暖的一至四句，第一人稱，保留所有意思和事實，可以把分行合併成段落，不加入原文沒有的內容，不說教，不加表情符號；絕不包含任何個人資料（用 original_masked 的做法處理）；relevant 為 false 時為空字串,
   "tags": 2 至 4 個簡短的話題標籤，用原文的語言，描述內容講甚麼（例如 ["目的","做事","反思"] 或 ["neighbour","kindness"]），每個最多 8 個字，不含 # 號；relevant 為 false 時為空陣列,
   "lang": 原文語言代碼，例如 "yue"、"zh-Hant"、"en",
-  "safe": true 或 false —— 以下任何一項為 false：粗言穢語、侮辱、仇恨或歧視言論、性內容、騷擾或威脅、政治攻擊、個人資料（電話、電郵、地址、他人全名）、廣告或推銷、明顯的垃圾訊息,
+  "safe": true 或 false —— 以下任何一項為 false：粗言穢語、侮辱、仇恨或歧視言論、性內容、騷擾或威脅、政治攻擊、廣告或推銷、明顯的垃圾訊息。注意：個人資料不會令 safe 變 false，而是用下面的 original_masked 處理,
+  "has_pii": true 或 false —— 原文是否含有個人資料：電話、電郵、住址或門牌、他人的全名、身份證或車牌號碼、學校或公司的具體名稱連同個人身份等,
+  "original_masked": 原文一字不改，只把每項個人資料換成 ＊＊＊（他人的全名可以改為「一位朋友」、「同事」這類稱呼）；沒有個人資料時等於原文,
   "name_safe": true 或 false —— 提供的名字是否可以公開顯示（同上標準；空名字為 true）,
   "reason": 不相關或不安全時的簡短中文原因，否則為空字串
 }
@@ -80,6 +99,8 @@ interface Verdict {
   lang: string;
   safe: boolean;
   name_safe: boolean;
+  has_pii: boolean;
+  original_masked: string;
   reason: string;
 }
 
@@ -127,6 +148,8 @@ async function judge(text: string, name: string, env: ShareEnv): Promise<Verdict
     lang: typeof v.lang === 'string' ? v.lang.slice(0, 12) : '',
     safe: v.safe === true,
     name_safe: v.name_safe !== false,
+    has_pii: v.has_pii === true,
+    original_masked: typeof v.original_masked === 'string' ? v.original_masked.trim() : '',
     reason: typeof v.reason === 'string' ? v.reason.slice(0, 200) : '',
   };
 }
@@ -221,13 +244,15 @@ export async function handleShare(request: Request, url: URL, env: ShareEnv, hea
     } catch {
       return json({ error: 'invalid json' }, 400, headers);
     }
-    const text = typeof payload.text === 'string' ? payload.text.replace(/\s+/g, ' ').trim() : '';
-    const name = typeof payload.name === 'string' ? payload.name.replace(/\s+/g, ' ').trim() : '';
-    if (!text) return json({ error: 'empty' }, 400, headers);
-    if (utf8Len(text) > TEXT_MAX || utf8Len(name) > NAME_MAX) return json({ error: 'too_long' }, 400, headers);
-    if (CONTACT_RE.test(text) || CONTACT_RE.test(name)) {
-      return json({ error: 'unsafe', reason: '內容或名字包含網址、電話或電郵' }, 422, headers);
-    }
+    const rawText = typeof payload.text === 'string' ? payload.text.replace(/\s+/g, ' ').trim() : '';
+    const rawName = typeof payload.name === 'string' ? payload.name.replace(/\s+/g, ' ').trim() : '';
+    if (!rawText) return json({ error: 'empty' }, 400, headers);
+    if (utf8Len(rawText) > TEXT_MAX || utf8Len(rawName) > NAME_MAX) return json({ error: 'too_long' }, 400, headers);
+    const t = maskContacts(rawText);
+    const n = maskContacts(rawName);
+    const text = t.text;
+    const name = n.masked ? '' : rawName; // a name that is really a phone/email is dropped
+    let masked = t.masked || n.masked;
     if (!env.OPENROUTER_API_KEY) return json({ error: 'server not configured' }, 503, headers);
 
     const now = new Date();
@@ -270,16 +295,25 @@ export async function handleShare(request: Request, url: URL, env: ShareEnv, hea
       return json({ error: 'unrelated', reason: verdict.reason }, 422, headers);
     }
 
+    // What we store as "原文" is the model's masked copy (names of third parties etc.),
+    // re-run through the regex in case the model missed a number.
+    let original = text;
+    if (verdict.has_pii && verdict.original_masked) {
+      original = maskContacts(verdict.original_masked).text;
+      masked = true;
+    }
+    const rewrite = maskContacts(verdict.rewrite).text;
+
     const deleteToken = randomToken();
     const inserted = await db
       .prepare(
         `INSERT INTO posts (created_at, name, original, rewrite, mottos, tags, lang, ip_hash, delete_token)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) RETURNING id, created_at, name, original, rewrite, mottos, tags, hidden`,
       )
-      .bind(now.toISOString(), name, text, verdict.rewrite, JSON.stringify(verdict.mottos), JSON.stringify(verdict.tags), verdict.lang, ipHash, deleteToken)
+      .bind(now.toISOString(), name, original, rewrite, JSON.stringify(verdict.mottos), JSON.stringify(verdict.tags), verdict.lang, ipHash, deleteToken)
       .first<PostRow>();
     await log('posted');
-    return json({ post: publicPost(inserted!), deleteToken }, 201, headers);
+    return json({ post: publicPost(inserted!), deleteToken, masked }, 201, headers);
   }
 
   // ---- hide (own post via delete token, or admin); admin may delete permanently with ?permanent=1
