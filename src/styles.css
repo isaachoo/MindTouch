@@ -275,6 +275,89 @@ body {
   background: var(--accent-soft);
 }
 
+/* ---- 妙語開竅: amber accent, applied while that page is open ---- */
+:root[data-app='wit'] {
+  --bg: #fbf6ec;
+  --bg-glow-1: rgba(245, 205, 140, 0.5);
+  --bg-glow-2: rgba(250, 225, 190, 0.6);
+  --card: #fffdf7;
+  --card-border: rgba(130, 90, 30, 0.1);
+  --text: #3b2f1e;
+  --muted: #8a7558;
+  --accent: #d9a24a;
+  --accent-deep: #b4802c;
+  --accent-soft: #f7ead2;
+  --divider: rgba(130, 90, 30, 0.14);
+  --shadow: 0 10px 30px rgba(130, 90, 30, 0.1), 0 1px 2px rgba(130, 90, 30, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-app='wit']:not([data-theme='light']) {
+    --bg: #221c13;
+    --bg-glow-1: rgba(200, 150, 70, 0.25);
+    --bg-glow-2: rgba(170, 120, 60, 0.18);
+    --card: #2c251a;
+    --card-border: rgba(240, 215, 170, 0.08);
+    --text: #f3ebdd;
+    --muted: #b9a685;
+    --accent: #e2b15e;
+    --accent-deep: #edc47c;
+    --accent-soft: #3b3121;
+    --divider: rgba(240, 215, 170, 0.1);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+:root[data-app='wit'] .tell-more {
+  box-shadow: 0 6px 18px rgba(180, 128, 44, 0.28);
+}
+
+.wit-brand {
+  padding: 14px 0 10px;
+}
+
+.wit-brand h1 {
+  font-size: 1.6rem;
+}
+
+.wit .section-title {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin: 0 4px 10px;
+}
+
+.wit-setup {
+  margin: 14px 0 12px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 12px 12px 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.wit-setup-label {
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--accent-deep);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.wit-note p {
+  margin: 0 0 10px;
+}
+
+.wit-details {
+  margin-top: 6px;
+  padding: 0;
+  background: none;
+  animation: none;
+}
+
 /* ---- 你也分享: lavender accent, applied while that page is open ---- */
 :root[data-app='share'] {
   --bg: #f6f3fa;
@@ -589,6 +672,32 @@ body {
   color: var(--accent-deep);
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Four tabs: tighten on phones so they stay on one row. */
+@media (max-width: 480px) {
+  .app-tabs {
+    gap: 2px;
+    padding: 3px;
+    max-width: 100%;
+  }
+
+  .app-tab {
+    padding: 7px 9px;
+    gap: 4px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
+  .app-tab svg {
+    display: none;
+  }
+
+  .app-tab.active svg {
+    display: inline;
+    width: 14px;
+    height: 14px;
+  }
 }
 
 .brand {

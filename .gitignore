@@ -13,3 +13,4 @@ data/carers/published/*
 !data/carers/published/services.csv
 worker/.wrangler/
 __pycache__/
+src/wit/data/quotes.json

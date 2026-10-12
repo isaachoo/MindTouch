@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "data": "node scripts/build-data.mjs && node scripts/build-data.mjs data/carer_quotes.csv src/carer/data/quotes.json",
+    "data": "node scripts/build-data.mjs && node scripts/build-data.mjs data/carer_quotes.csv src/carer/data/quotes.json && node scripts/build-data.mjs data/wit_quotes.csv src/wit/data/quotes.json --notes",
     "carers:weekly": "node scripts/carers-weekly.mjs --details --git-publish",
     "carers:directory": "node scripts/carers-weekly.mjs --directory-only --details --skip-sites",
     "carers:websites": "node scripts/carers-weekly.mjs --watch-only",

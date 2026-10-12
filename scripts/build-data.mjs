@@ -5,7 +5,17 @@ import { dirname } from 'node:path';
 import { parse } from 'csv-parse/sync';
 
 // Usage: node scripts/build-data.mjs [input.csv] [output.json]
-const [, , input = 'data/quotes.csv', output = 'src/data/quotes.json'] = process.argv;
+const [, , input = 'data/quotes.csv', output = 'src/data/quotes.json', ...flags] = process.argv;
+const withNotes = flags.includes('--notes');
+
+// Editorial notes carry some editor-only boilerplate; keep the reader-facing parts.
+function trimNote(note) {
+  return note
+    .split(/(?<=[。！？])\s*/)
+    .filter((sent) => sent && !/本次按主題|本次編輯解讀|本列|quote_en|不以人物生死/.test(sent))
+    .join('')
+    .trim();
+}
 const csv = readFileSync(input, 'utf8').replace(/^\uFEFF/, '');
 const rows = parse(csv, { columns: true, skip_empty_lines: true });
 
@@ -51,6 +61,7 @@ for (const r of rows) {
       url: r.source_url,
       cats: [],
     };
+    if (withNotes) q.note = trimNote(r.editorial_notes || '');
     quotes.set(r.quote_id, q);
   }
   if (!q.cats.includes(r.category_id)) q.cats.push(r.category_id);
