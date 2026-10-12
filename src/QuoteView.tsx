@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchExplanation } from './explain';
 import Thinking, { estimateMs, recordDuration } from './Thinking';
+import { shareQuote } from './shareImage';
 import { directionFor, type Category, type Quote } from './data';
 
 interface Props {
@@ -19,6 +20,23 @@ function todayLabel(): string {
 export default function QuoteView({ category, quote, onBack, daily = false }: Props) {
   const [showMore, setShowMore] = useState(false);
   const showOriginal = quote.orig.trim() !== quote.zh.trim();
+  const [shareNote, setShareNote] = useState('');
+  const [sharing, setSharing] = useState(false);
+
+  const onShare = async () => {
+    if (sharing) return;
+    setSharing(true);
+    setShareNote('');
+    try {
+      const outcome = await shareQuote(quote);
+      if (outcome === 'downloaded') setShareNote('圖片已下載，文字和連結已複製。');
+    } catch (err) {
+      console.error(err);
+      setShareNote('暫時未能分享，請稍後再試。');
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const [explain, setExplain] = useState<{ status: 'idle' | 'loading' | 'done' | 'error'; text?: string }>({
     status: 'idle',
@@ -86,6 +104,13 @@ export default function QuoteView({ category, quote, onBack, daily = false }: Pr
 
         <footer className="attribution">
           <span className="author">— {quote.author}</span>
+          <span className="attribution-actions">
+            <button type="button" className="share-btn" onClick={() => void onShare()} disabled={sharing} aria-label="分享這句話">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M12 16V4m0 0l-4 4m4-4l4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>{sharing ? '準備中' : '分享'}</span>
+            </button>
           <button
             type="button"
             className={`more ${showMore ? 'open' : ''}`}
@@ -97,7 +122,9 @@ export default function QuoteView({ category, quote, onBack, daily = false }: Pr
               <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </button>
+          </span>
         </footer>
+        {shareNote && <p className="share-note">{shareNote}</p>}
 
         {explain.status === 'idle' && (
           <button type="button" className="tell-more" onClick={() => void askMore()}>

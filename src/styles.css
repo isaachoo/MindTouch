@@ -738,10 +738,53 @@ body {
   font-size: 0.95rem;
 }
 
+.attribution-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--divider);
+  border-radius: 999px;
+  background: none;
+  color: var(--accent-deep);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.share-btn:active {
+  background: var(--accent-soft);
+}
+
+.share-btn svg,
+.more svg {
+  flex: none;
+}
+
+.share-btn:disabled {
+  opacity: 0.6;
+}
+
+.share-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
 .more {
   flex: none;
   width: 34px;
   height: 34px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
