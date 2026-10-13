@@ -11,10 +11,16 @@ const withNotes = flags.includes('--notes');
 // Editorial notes carry some editor-only boilerplate; keep the reader-facing parts.
 function trimNote(note) {
   return note
-    .split(/(?<=[。！？])\s*/)
-    .filter((sent) => sent && !/本次按主題|本次編輯解讀|本列|quote_en|不以人物生死/.test(sent))
-    .join('')
-    .trim();
+    .split(/\n\s*\n|\n/)
+    .map((para) =>
+      para
+        .split(/(?<=[。！？])\s*/)
+        .filter((sent) => sent && !/本次按主題|本次編輯解讀|本列|quote_en|不以人物生死/.test(sent))
+        .join('')
+        .trim(),
+    )
+    .filter(Boolean)
+    .join('\n');
 }
 const csv = readFileSync(input, 'utf8').replace(/^\uFEFF/, '');
 const rows = parse(csv, { columns: true, skip_empty_lines: true });

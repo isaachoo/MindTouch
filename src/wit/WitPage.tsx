@@ -137,7 +137,9 @@ function WitCard({ situation, quote, onBack }: { situation: Category; quote: Quo
         )}
         {showMore && (
           <div className="explain wit-note">
-            {quote.note && <p>{quote.note}</p>}
+            {quote.note?.split('\n').map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
             <dl className="details wit-details">
               <div>
                 <dt>出處</dt>
