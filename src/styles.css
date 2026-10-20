@@ -1099,85 +1099,12 @@ body {
   font-size: 1.6rem;
 }
 
-.people-tools {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.people-search,
-.people-select {
-  width: 100%;
-  padding: 11px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--divider);
-  background: var(--card);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.95rem;
-}
-
-.people-chips,
-.people-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.people-row .people-select {
-  flex: 1;
-  width: auto;
-}
-
-.people .chip {
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--divider);
-  background: var(--card);
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.88rem;
-  cursor: pointer;
-}
-
-.people .chip.on {
-  background: var(--accent-soft);
-  color: var(--accent-deep);
-  border-color: var(--accent);
-  font-weight: 600;
-}
-
-.people-count {
-  margin: 4px 6px 8px;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
 .people-en {
   color: var(--muted);
   font-family: var(--sans);
   font-size: 0.8rem;
   font-weight: 400;
   margin-left: 4px;
-}
-
-.people-note {
-  display: block;
-  margin-top: 8px;
-  padding: 8px 12px;
-  border-left: 3px solid var(--accent);
-  background: var(--accent-soft);
-  border-radius: 0 10px 10px 0;
-  color: var(--text);
-  font-size: 0.9rem;
-  line-height: 1.6;
-}
-
-.people-empty {
-  padding: 18px;
-  color: var(--muted);
-  text-align: center;
 }
 
 .people-ask {
@@ -1205,8 +1132,7 @@ body {
   line-height: 1.6;
 }
 
-.people-input:focus,
-.people-search:focus {
+.people-input:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -1286,33 +1212,12 @@ body {
   line-height: 1.6;
 }
 
-.people-history,
-.people-note a {
-  color: var(--accent-deep);
-  font-weight: 600;
-  text-decoration: none;
-}
-
 .people-history {
   display: inline-block;
   margin-top: 6px;
-}
-
-.people-note a {
-  display: inline-block;
-  margin-left: 8px;
-  font-size: 0.85rem;
-}
-
-.people-browse {
-  margin-bottom: 8px;
-}
-
-.people-browse summary {
-  padding: 10px 6px;
   color: var(--accent-deep);
   font-weight: 600;
-  cursor: pointer;
+  text-decoration: none;
 }
 
 .people-error-detail {
