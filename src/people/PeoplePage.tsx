@@ -67,7 +67,7 @@ export default function PeoplePage() {
       setPhase('done');
     } catch (err) {
       console.error(err);
-      setErrorInfo(err instanceof Error ? err.message.slice(0, 160) : String(err));
+      setErrorInfo(err instanceof Error ? err.message.slice(0, 240) : String(err));
       setPhase('error');
     }
   };
@@ -169,7 +169,7 @@ export default function PeoplePage() {
       )}
 
       <details className="people-browse">
-        <summary>瀏覽全部 1000 位古人</summary>
+        <summary>瀏覽全部 2000 位古人</summary>
         <div className="people-tools">
           <input
             type="search"

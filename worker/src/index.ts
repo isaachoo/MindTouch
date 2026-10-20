@@ -86,8 +86,10 @@ function json(body: unknown, status: number, headers: HeadersInit): Response {
 }
 
 async function complete(messages: { role: string; content: string }[], env: Env, maxTokens = 800): Promise<string> {
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const base = (env.OPENROUTER_BASE ?? 'https://openrouter.ai/api/v1').replace(/\/$/, '');
+  const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
+    signal: AbortSignal.timeout(55000),
     headers: {
       Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
