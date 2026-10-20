@@ -21,19 +21,24 @@ async function call(url: string, init: RequestInit, started: number): Promise<Re
   }
 }
 
-async function read(res: Response): Promise<MatchResult | 'pending'> {
-  if (res.status === 202 || res.status === 404) return 'pending'; // 404: job not visible yet
-  const body = (await res.json().catch(() => ({}))) as Partial<MatchResult> & { error?: string; detail?: string };
-  if (!res.ok) throw new Error(`${res.status} ${body.error ?? ''} ${body.detail ?? ''}`.trim());
-  if (typeof body.id !== 'number' || !body.message) throw new Error('empty match');
-  return { situation: body.situation ?? '', id: body.id, message: body.message, crisis: body.crisis === true };
+export interface FollowupResult {
+  message: string;
+  crisis: boolean;
 }
 
-export async function fetchMatch(text: string): Promise<MatchResult> {
+async function read(res: Response): Promise<Record<string, unknown> | 'pending'> {
+  if (res.status === 202 || res.status === 404) return 'pending'; // 404: job not visible yet
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string; detail?: string };
+  if (!res.ok) throw new Error(`${res.status} ${body.error ?? ''} ${body.detail ?? ''}`.trim());
+  return body;
+}
+
+// POST starts a job and answers at once; then poll for the result.
+async function startAndPoll(path: string, payload: unknown): Promise<Record<string, unknown>> {
   const started = Date.now();
   const res = await call(
-    `${BASE}/people/match`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) },
+    `${BASE}${path}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
     started,
   );
   const first = await read(res.clone());
@@ -47,4 +52,21 @@ export async function fetchMatch(text: string): Promise<MatchResult> {
     if (out !== 'pending') return out;
   }
   throw new Error('timed out after 60s');
+}
+
+export async function fetchMatch(text: string): Promise<MatchResult> {
+  const body = await startAndPoll('/people/match', { text });
+  if (typeof body.id !== 'number' || typeof body.message !== 'string' || !body.message) throw new Error('empty match');
+  return {
+    situation: typeof body.situation === 'string' ? body.situation : '',
+    id: body.id,
+    message: body.message,
+    crisis: body.crisis === true,
+  };
+}
+
+export async function fetchFollowup(id: number, text: string, reply: string, question: string): Promise<FollowupResult> {
+  const body = await startAndPoll('/people/followup', { id, text, reply, question });
+  if (typeof body.message !== 'string' || !body.message) throw new Error('empty reply');
+  return { message: body.message, crisis: body.crisis === true };
 }

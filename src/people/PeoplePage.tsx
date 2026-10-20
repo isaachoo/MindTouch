@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AppTabs from '../AppTabs';
-import { fetchMatch, MAX_CHARS, type MatchResult } from './api';
+import { fetchFollowup, fetchMatch, MAX_CHARS, type FollowupResult, type MatchResult } from './api';
 import raw from './people.json';
 import { usePortrait } from './portrait';
 
@@ -23,6 +23,23 @@ const lifespan = (p: Person) => `${year(p.b)} – ${year(p.d)}`;
 const wikiUrl = (p: Person) => `https://zh.wikipedia.org/w/index.php?search=${encodeURIComponent(p.zh)}`;
 const clip = (t: string) => Array.from(t).slice(0, MAX_CHARS).join('');
 
+// "18世紀的德國" — the figure's own time and place, from the middle of their life.
+function era(p: Person): string {
+  const mid = Math.round((p.b + p.d) / 2);
+  const century = Math.floor(Math.abs(mid) / 100) + 1;
+  return `${mid < 0 ? '公元前' : ''}${century}世紀的${p.region}`;
+}
+
+// The 古人 announces there is time for just one more question. Picked by id so it stays put on re-render.
+const LAST_CALL = [
+  (when: string) => `時光之門快要關上了。我只能再答你一個問題，之後便要回到${when}。`,
+  (when: string) => `${when}在呼喚我了。趁還有片刻，你還想問我甚麼？只可以一題啊。`,
+  (when: string) => `燈快滅了，墨也快乾了。在我回到${when}之前，你可以再問我一件事。`,
+  (when: string) => `我借來的時間只剩一點點。再問我一句吧，問完我就要趕回${when}了。`,
+  (when: string) => `沙漏只剩最後幾粒沙。最後一個問題，留給你；之後我得回${when}去了。`,
+];
+const lastCall = (p: Person) => LAST_CALL[p.id % LAST_CALL.length](era(p));
+
 function usePeopleTheme() {
   useEffect(() => {
     document.documentElement.setAttribute('data-app', 'people');
@@ -39,6 +56,16 @@ export default function PeoplePage() {
   const [asked, setAsked] = useState('');
   const length = Array.from(text).length;
   const matched = result ? people.find((p) => p.id === result.id) : undefined;
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const reset = () => {
+    setText('');
+    setAsked('');
+    setResult(null);
+    setPhase('idle');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    inputRef.current?.focus();
+  };
 
   const ask = async () => {
     const t = text.trim();
@@ -70,6 +97,7 @@ export default function PeoplePage() {
         </label>
         <textarea
           id="people-input"
+          ref={inputRef}
           className="people-input"
           rows={3}
           value={text}
@@ -113,7 +141,7 @@ export default function PeoplePage() {
               <small className="people-error-detail">{errorInfo}</small>
             </p>
           )}
-          {phase === 'done' && result && matched && <Reply result={result} person={matched} />}
+          {phase === 'done' && result && matched && <Reply key={`${result.id}-${asked}`} asked={asked} result={result} person={matched} onReset={reset} />}
         </section>
       )}
 
@@ -132,32 +160,137 @@ function Avatar({ person }: { person?: Person }) {
   );
 }
 
-function Reply({ result, person }: { result: MatchResult; person: Person }) {
-  const paragraphs = result.message.split(/\n+/).filter((p) => p.trim());
+function Bubbles({ person, message, showName }: { person: Person; message: string; showName?: boolean }) {
+  const paragraphs = message.split(/\n+/).filter((p) => p.trim());
+  return (
+    <div className="bubble-row them">
+      <Avatar person={person} />
+      <div className="bubble-stack">
+        {showName && (
+          <>
+            <p className="chat-name">
+              {person.zh} <span className="people-en">{person.en}</span>
+            </p>
+            <p className="chat-meta">
+              {lifespan(person)}・{person.region}・{person.field}
+            </p>
+          </>
+        )}
+        {paragraphs.map((para, i) => (
+          <p key={i} className="bubble them" style={{ animationDelay: `${i * 0.25}s` }}>
+            {para}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Crisis() {
+  return (
+    <p className="people-crisis">
+      如果你有傷害自己的念頭，請即致電撒瑪利亞防止自殺會 2389 2222，或生命熱線 2382 0000；情況緊急請打 999。
+    </p>
+  );
+}
+
+interface ReplyProps {
+  asked: string;
+  result: MatchResult;
+  person: Person;
+  onReset: () => void;
+}
+
+function Reply({ asked, result, person, onReset }: ReplyProps) {
+  const [question, setQuestion] = useState('');
+  const [sent, setSent] = useState('');
+  const [state, setState] = useState<'ask' | 'loading' | 'done' | 'error'>('ask');
+  const [answer, setAnswer] = useState<FollowupResult | null>(null);
+  const [errorInfo, setErrorInfo] = useState('');
+  const qLength = Array.from(question).length;
+
+  const send = async () => {
+    const q = question.trim();
+    if (!q || state === 'loading') return;
+    setSent(q);
+    setState('loading');
+    try {
+      setAnswer(await fetchFollowup(person.id, asked, result.message, q));
+      setState('done');
+    } catch (err) {
+      console.error(err);
+      setErrorInfo(err instanceof Error ? err.message.slice(0, 240) : String(err));
+      setState('error');
+    }
+  };
+
   return (
     <>
       {result.situation && <p className="chat-note">你的處境：{result.situation}</p>}
-      <div className="bubble-row them">
-        <Avatar person={person} />
-        <div className="bubble-stack">
-          <p className="chat-name">
-            {person.zh} <span className="people-en">{person.en}</span>
-          </p>
-          <p className="chat-meta">
-            {lifespan(person)}・{person.region}・{person.field}
-          </p>
-          {paragraphs.map((para, i) => (
-            <p key={i} className="bubble them" style={{ animationDelay: `${i * 0.25}s` }}>
-              {para}
-            </p>
-          ))}
+      <Bubbles person={person} message={result.message} showName />
+      {result.crisis && <Crisis />}
+
+      <Bubbles person={person} message={lastCall(person)} />
+
+      {state !== 'ask' && state !== 'error' && (
+        <div className="bubble-row me">
+          <p className="bubble me">{sent}</p>
         </div>
-      </div>
-      {result.crisis && (
-        <p className="people-crisis">
-          如果你有傷害自己的念頭，請即致電撒瑪利亞防止自殺會 2389 2222，或生命熱線 2382 0000；情況緊急請打 999。
-        </p>
       )}
+      {state === 'loading' && (
+        <div className="bubble-row them">
+          <Avatar person={person} />
+          <p className="bubble them typing" aria-label={`${person.zh}諗緊點回覆`}>
+            <span />
+            <span />
+            <span />
+          </p>
+        </div>
+      )}
+      {state === 'done' && answer && (
+        <>
+          <Bubbles person={person} message={answer.message} />
+          {answer.crisis && <Crisis />}
+          <p className="chat-note">
+            {person.zh}已回到{era(person)}。
+          </p>
+          <button type="button" className="people-go chat-again" onClick={onReset}>
+            再問另一位古人
+          </button>
+        </>
+      )}
+      {(state === 'ask' || state === 'error') && (
+        <div className="chat-reply">
+          {state === 'error' && (
+            <p className="people-error">
+              {person.zh}聽唔清楚，再問一次？
+              <small className="people-error-detail">{errorInfo}</small>
+            </p>
+          )}
+          <input
+            className="chat-input"
+            value={question}
+            placeholder="最後一個問題…"
+            onChange={(e) => setQuestion(clip(e.target.value))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+            aria-label={`問${person.zh}最後一個問題`}
+          />
+          <div className="people-ask-foot">
+            <span className="people-counter">
+              {qLength} / {MAX_CHARS}
+            </span>
+            <button type="button" className="people-go" onClick={() => void send()} disabled={!qLength}>
+              送出
+            </button>
+          </div>
+        </div>
+      )}
+
       <a className="people-history" href={wikiUrl(person)} target="_blank" rel="noopener noreferrer">
         睇{person.zh}嘅生平 ↗
       </a>

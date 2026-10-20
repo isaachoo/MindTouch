@@ -1,6 +1,7 @@
-// 古人 route: POST /people/match. A short description of what the user is facing is summarised into a
+// 古人 routes. POST /people/match: a short description of what the user is facing is summarised into a
 // situation, matched to the figure (out of src/people/people.json) with the most similar experience, and
-// that figure "speaks" to the user in first person.
+// that figure "speaks" to the user in first person. POST /people/followup: one last question to the same
+// figure, answered with an in-character farewell.
 import people from '../../src/people/people.json';
 
 export interface PeopleEnv {
@@ -78,6 +79,49 @@ function parseResult(raw: string): MatchResult | null {
   }
 }
 
+const year = (y: number) => (y < 0 ? `公元前${-y}年` : `${y}年`);
+
+function followupPrompt(p: Person, text: string, reply: string): string {
+  return `你是${p.zh}（${p.en}，${year(p.b)}至${year(p.d)}，${p.region}，${p.field}：${p.note}）。你隔着時間與一位使用者對話。
+
+使用者先前說：「${text}」
+你先前回覆：
+${reply}
+
+你借來的時間快用完了，現在使用者問你最後一個問題。請以第一人稱「我」回答，約120至180字，繁體中文書面語，分一至兩段：
+- 直接回應這個問題本身，語氣延續先前的溫暖與平實；可引用你確實可靠知道的生平，沒有把握的細節一律不寫，不編造事件、對白或數字。
+- 不要說「我懂」「我明白」「我知道」「我理解」這類聲稱明白對方的話；用「你」稱呼使用者，不要用「他」「她」。
+- 最後一兩句要有趣、溫暖地道別，說明你要回到自己的時代；用你那個時代、你那一行的具體事物作比喻（例如油燈將盡、墨快乾了、馬車在等、樂譜未寫完、船要起錨），輕鬆而不煽情。
+- 問題與先前處境無關也可以友善回答；涉及醫療、法律或財務時，溫和建議找專業人士。不使用列點、標題或表情符號。
+
+如果問題顯示有傷害自己或輕生的念頭，將 "crisis" 設為 true，並以安全、陪伴為先，鼓勵他向身邊的人或專業人員求助；否則為 false。
+
+只輸出一個 JSON 物件，不要任何其他文字：
+{"message":"…","crisis":false}`;
+}
+
+export interface FollowupResult {
+  message: string;
+  crisis: boolean;
+}
+
+function parseFollowup(raw: string): FollowupResult | null {
+  const m = raw.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      const o = JSON.parse(m[0]) as Partial<FollowupResult>;
+      if (typeof o.message === 'string' && o.message.trim()) return { message: o.message.trim(), crisis: o.crisis === true };
+    } catch {
+      // fall through to plain text
+    }
+  }
+  const text = raw.trim();
+  return text && !text.startsWith('{') ? { message: text, crisis: false } : null;
+}
+
+const clean = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '').slice(0, max * 4);
+const chars = (t: string) => Array.from(t).length;
+
 async function sha(text: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].slice(0, 12).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -92,9 +136,9 @@ export async function handlePeople<E extends PeopleEnv>(
   complete: Complete<E>,
   json: (body: unknown, status: number, headers: HeadersInit) => Response,
 ): Promise<Response> {
-  // Generating takes 4-8 s, and some networks cut requests that stay open that long. So POST /people/match
-  // starts the job and answers at once (202 + key); the page then polls GET /people/result?key=… with short
-  // requests. Results, errors and an in-progress marker live in the Cache API under that key.
+  // Generating takes 4-8 s, and some networks cut requests that stay open that long. So each POST starts a
+  // job and answers at once (202 + key); the page then polls GET /people/result?key=… with short requests.
+  // Results, errors and an in-progress marker live in the Cache API under that key.
   const cache = caches.default;
   const slot = (key: string, kind: 'result' | 'error' | 'pending') =>
     new Request(`https://cache.local/people/${PEOPLE_PROMPT_VERSION}/${env.MODEL}/${kind}/${key}`);
@@ -109,11 +153,39 @@ export async function handlePeople<E extends PeopleEnv>(
   // Returns the response for a key that already has a result, an error or a running job; null if none.
   const lookup = async (key: string): Promise<Response | null> => {
     const done = await cache.match(slot(key, 'result'));
-    if (done) return json({ ...((await done.json()) as MatchResult), cached: true }, 200, headers);
+    if (done) return json({ ...((await done.json()) as object), cached: true }, 200, headers);
     const failed = await cache.match(slot(key, 'error'));
     if (failed) return json(await failed.json(), 502, headers);
     if (await cache.match(slot(key, 'pending'))) return json({ pending: true, key }, 202, headers);
     return null;
+  };
+
+  // Runs the model in the background (one retry on malformed output) and stores the outcome under key.
+  const start = async <T>(key: string, messages: { role: string; content: string }[], parse: (raw: string) => T | null) => {
+    const existing = await lookup(key);
+    // A cached error is retried rather than replayed.
+    if (existing && existing.status !== 502) return existing;
+    const run = async () => {
+      try {
+        let raw = await complete(messages, env, 1200);
+        let result = parse(raw);
+        if (!result) {
+          raw = await complete(messages, env, 1200);
+          result = parse(raw);
+        }
+        if (result) await store(key, 'result', result, 604800);
+        else await store(key, 'error', { error: 'unusable model output', detail: raw.slice(0, 160) }, 60);
+      } catch (err) {
+        console.error(err);
+        await store(key, 'error', { error: 'upstream failed', detail: String(err).slice(0, 300) }, 60);
+      } finally {
+        await cache.delete(slot(key, 'pending'));
+      }
+    };
+    await cache.delete(slot(key, 'error'));
+    await store(key, 'pending', { started: Date.now() }, 90);
+    ctx.waitUntil(run());
+    return json({ pending: true, key }, 202, headers);
   };
 
   if (url.pathname === '/people/result' && request.method === 'GET') {
@@ -122,48 +194,36 @@ export async function handlePeople<E extends PeopleEnv>(
     return (await lookup(key)) ?? json({ error: 'unknown key' }, 404, headers);
   }
 
-  if (url.pathname !== '/people/match' || request.method !== 'POST') return json({ error: 'not found' }, 404, headers);
+  if (request.method !== 'POST' || (url.pathname !== '/people/match' && url.pathname !== '/people/followup')) {
+    return json({ error: 'not found' }, 404, headers);
+  }
 
-  let payload: { text?: unknown };
+  let payload: { text?: unknown; id?: unknown; reply?: unknown; question?: unknown };
   try {
     payload = await request.json();
   } catch {
     return json({ error: 'invalid json' }, 400, headers);
   }
-  const text = typeof payload.text === 'string' ? payload.text.trim().replace(/\s+/g, ' ') : '';
-  const length = Array.from(text).length;
-  if (length < 2 || length > MAX_CHARS) return json({ error: `text must be 2-${MAX_CHARS} characters` }, 400, headers);
+  const text = clean(payload.text, MAX_CHARS);
+  if (chars(text) < 2 || chars(text) > MAX_CHARS) return json({ error: `text must be 2-${MAX_CHARS} characters` }, 400, headers);
   if (!env.OPENROUTER_API_KEY) return json({ error: 'server not configured' }, 503, headers);
 
-  const key = await sha(text);
-  const existing = await lookup(key);
-  // A cached error is retried rather than replayed.
-  if (existing && existing.status !== 502) return existing;
+  if (url.pathname === '/people/match') {
+    return start(await sha(text), [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: `使用者說：「${text}」` },
+    ], parseResult);
+  }
 
-  const run = async () => {
-    try {
-      const messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `使用者說：「${text}」` },
-      ];
-      let raw = await complete(messages, env, 1200);
-      let result = parseResult(raw);
-      if (!result) {
-        raw = await complete(messages, env, 1200); // one retry on malformed output
-        result = parseResult(raw);
-      }
-      if (result) await store(key, 'result', result, 604800);
-      else await store(key, 'error', { error: 'unusable model output', detail: raw.slice(0, 160) }, 60);
-    } catch (err) {
-      console.error(err);
-      await store(key, 'error', { error: 'upstream failed', detail: String(err).slice(0, 300) }, 60);
-    } finally {
-      await cache.delete(slot(key, 'pending'));
-    }
-  };
-
-  await cache.delete(slot(key, 'error'));
-  await store(key, 'pending', { started: Date.now() }, 90);
-  ctx.waitUntil(run());
-  return json({ pending: true, key }, 202, headers);
+  // /people/followup: one last question to the figure who answered the first one.
+  const person = byId.get(Number(payload.id));
+  const question = clean(payload.question, MAX_CHARS);
+  const reply = typeof payload.reply === 'string' ? payload.reply.trim().slice(0, 1500) : '';
+  if (!person) return json({ error: 'unknown person' }, 400, headers);
+  if (chars(question) < 1 || chars(question) > MAX_CHARS) return json({ error: `question must be 1-${MAX_CHARS} characters` }, 400, headers);
+  if (!reply) return json({ error: 'missing reply' }, 400, headers);
+  return start(await sha(`followup|${person.id}|${text}|${question}`), [
+    { role: 'system', content: followupPrompt(person, text, reply) },
+    { role: 'user', content: `使用者最後的問題：「${question}」` },
+  ], parseFollowup);
 }
