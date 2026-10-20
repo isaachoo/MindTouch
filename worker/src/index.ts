@@ -285,11 +285,13 @@ export default {
     if (url.pathname.startsWith('/carer/')) return handleCarer(request, url, env, ctx, headers);
     if (url.pathname.startsWith('/people/')) {
       // An uncaught exception would reach the browser without CORS headers ("Failed to fetch"); report it as JSON instead.
+      // no-transform stops Cloudflare compressing the reply (zstd), which some proxies and browsers fail to decode.
+      const peopleHeaders = { ...headers, 'Cache-Control': 'no-store, no-transform' };
       try {
-        return await handlePeople(request, url, env, ctx, headers, complete, json);
+        return await handlePeople(request, url, env, ctx, peopleHeaders, complete, json);
       } catch (err) {
         console.error(err);
-        return json({ error: 'worker exception', detail: String(err).slice(0, 300) }, 500, headers);
+        return json({ error: 'worker exception', detail: String(err).slice(0, 300) }, 500, peopleHeaders);
       }
     }
     if (url.pathname.startsWith('/share/')) return handleShare(request, url, env, headers);
