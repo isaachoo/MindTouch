@@ -92,6 +92,36 @@ export async function handlePeople<E extends PeopleEnv>(
   complete: Complete<E>,
   json: (body: unknown, status: number, headers: HeadersInit) => Response,
 ): Promise<Response> {
+  // Generating takes 4-8 s, and some networks cut requests that stay open that long. So POST /people/match
+  // starts the job and answers at once (202 + key); the page then polls GET /people/result?key=… with short
+  // requests. Results, errors and an in-progress marker live in the Cache API under that key.
+  const cache = caches.default;
+  const slot = (key: string, kind: 'result' | 'error' | 'pending') =>
+    new Request(`https://cache.local/people/${PEOPLE_PROMPT_VERSION}/${env.MODEL}/${kind}/${key}`);
+  const store = (key: string, kind: 'result' | 'error' | 'pending', body: unknown, maxAge: number) =>
+    cache.put(
+      slot(key, kind),
+      new Response(JSON.stringify(body), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${maxAge}` },
+      }),
+    );
+
+  // Returns the response for a key that already has a result, an error or a running job; null if none.
+  const lookup = async (key: string): Promise<Response | null> => {
+    const done = await cache.match(slot(key, 'result'));
+    if (done) return json({ ...((await done.json()) as MatchResult), cached: true }, 200, headers);
+    const failed = await cache.match(slot(key, 'error'));
+    if (failed) return json(await failed.json(), 502, headers);
+    if (await cache.match(slot(key, 'pending'))) return json({ pending: true, key }, 202, headers);
+    return null;
+  };
+
+  if (url.pathname === '/people/result' && request.method === 'GET') {
+    const key = url.searchParams.get('key') ?? '';
+    if (!/^[0-9a-f]{24}$/.test(key)) return json({ error: 'bad key' }, 400, headers);
+    return (await lookup(key)) ?? json({ error: 'unknown key' }, 404, headers);
+  }
+
   if (url.pathname !== '/people/match' || request.method !== 'POST') return json({ error: 'not found' }, 404, headers);
 
   let payload: { text?: unknown };
@@ -105,34 +135,35 @@ export async function handlePeople<E extends PeopleEnv>(
   if (length < 2 || length > MAX_CHARS) return json({ error: `text must be 2-${MAX_CHARS} characters` }, 400, headers);
   if (!env.OPENROUTER_API_KEY) return json({ error: 'server not configured' }, 503, headers);
 
-  const cache = caches.default;
-  const cacheKey = new Request(`https://cache.local/people/${PEOPLE_PROMPT_VERSION}/${env.MODEL}/${await sha(text)}`);
-  const hit = await cache.match(cacheKey);
-  if (hit) return json({ ...((await hit.json()) as MatchResult), cached: true }, 200, headers);
+  const key = await sha(text);
+  const existing = await lookup(key);
+  // A cached error is retried rather than replayed.
+  if (existing && existing.status !== 502) return existing;
 
-  try {
-    const messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `使用者說：「${text}」` },
-    ];
-    let raw = await complete(messages, env, 1200);
-    let result = parseResult(raw);
-    if (!result) {
-      raw = await complete(messages, env, 1200); // one retry on malformed output
-      result = parseResult(raw);
+  const run = async () => {
+    try {
+      const messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `使用者說：「${text}」` },
+      ];
+      let raw = await complete(messages, env, 1200);
+      let result = parseResult(raw);
+      if (!result) {
+        raw = await complete(messages, env, 1200); // one retry on malformed output
+        result = parseResult(raw);
+      }
+      if (result) await store(key, 'result', result, 604800);
+      else await store(key, 'error', { error: 'unusable model output', detail: raw.slice(0, 160) }, 60);
+    } catch (err) {
+      console.error(err);
+      await store(key, 'error', { error: 'upstream failed', detail: String(err).slice(0, 300) }, 60);
+    } finally {
+      await cache.delete(slot(key, 'pending'));
     }
-    if (!result) return json({ error: 'unusable model output', detail: raw.slice(0, 160) }, 502, headers);
-    ctx.waitUntil(
-      cache.put(
-        cacheKey,
-        new Response(JSON.stringify(result), {
-          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=604800' },
-        }),
-      ),
-    );
-    return json(result, 200, headers);
-  } catch (err) {
-    console.error(err);
-    return json({ error: 'upstream failed', detail: String(err).slice(0, 300) }, 502, headers);
-  }
+  };
+
+  await cache.delete(slot(key, 'error'));
+  await store(key, 'pending', { started: Date.now() }, 90);
+  ctx.waitUntil(run());
+  return json({ pending: true, key }, 202, headers);
 }
