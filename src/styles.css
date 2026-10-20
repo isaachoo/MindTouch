@@ -1057,3 +1057,125 @@ body {
     animation: none;
   }
 }
+
+/* ---- 古人: sage-green accent, applied while that page is open ---- */
+:root[data-app='people'] {
+  --bg: #f4f6ef;
+  --bg-glow-1: rgba(170, 200, 150, 0.45);
+  --bg-glow-2: rgba(210, 225, 190, 0.55);
+  --card: #fbfcf7;
+  --card-border: rgba(60, 90, 40, 0.1);
+  --text: #2f3a28;
+  --muted: #6f7f61;
+  --accent: #7ea06a;
+  --accent-deep: #5a7d47;
+  --accent-soft: #e4ecd9;
+  --divider: rgba(60, 90, 40, 0.14);
+  --shadow: 0 10px 30px rgba(60, 90, 40, 0.1), 0 1px 2px rgba(60, 90, 40, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-app='people']:not([data-theme='light']) {
+    --bg: #1a2016;
+    --bg-glow-1: rgba(110, 150, 90, 0.25);
+    --bg-glow-2: rgba(90, 130, 80, 0.18);
+    --card: #232b1e;
+    --card-border: rgba(210, 235, 190, 0.08);
+    --text: #ecf2e4;
+    --muted: #a6b799;
+    --accent: #8fb77a;
+    --accent-deep: #a9cf94;
+    --accent-soft: #2f3a28;
+    --divider: rgba(210, 235, 190, 0.1);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.people-brand {
+  padding: 14px 0 10px;
+}
+
+.people-brand h1 {
+  font-size: 1.6rem;
+}
+
+.people-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.people-search,
+.people-select {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--divider);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.people-chips,
+.people-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.people-row .people-select {
+  flex: 1;
+  width: auto;
+}
+
+.people .chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--divider);
+  background: var(--card);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.people .chip.on {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.people-count {
+  margin: 4px 6px 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.people-en {
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+.people-note {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 10px 10px 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.people-empty {
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+}

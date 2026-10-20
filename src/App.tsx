@@ -3,6 +3,7 @@ import { DAILY_ID, dailyCategory, findCategory, randomQuote, situations } from '
 import Home from './Home';
 import QuoteView from './QuoteView';
 import SharePage from './share/SharePage';
+import PeoplePage from './people/PeoplePage';
 import WitPage from './wit/WitPage';
 
 function readHash(): string {
@@ -25,6 +26,7 @@ export default function App() {
 
   if (route === 'share') return <SharePage />;
   if (route === 'share/admin') return <SharePage admin />;
+  if (route === 'people') return <PeoplePage />;
   if (route === 'wit' || route.startsWith('wit/')) {
     return (
       <WitPage

@@ -1,6 +1,6 @@
 // Switch between the two apps. Rendered at the top of both home screens.
 interface Props {
-  active: 'main' | 'wit' | 'share' | 'carer';
+  active: 'main' | 'wit' | 'share' | 'people' | 'carer';
 }
 
 export default function AppTabs({ active }: Props) {
@@ -25,6 +25,13 @@ export default function AppTabs({ active }: Props) {
           <path d="M13 7l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
         <span>你也分享</span>
+      </a>
+      <a className={`app-tab ${active === 'people' ? 'active' : ''}`} href={`${base}#/people`} aria-current={active === 'people' ? 'page' : undefined}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2" />
+          <path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <span>古人</span>
       </a>
       <a className={`app-tab ${active === 'carer' ? 'active' : ''}`} href={`${base}carer/`} aria-current={active === 'carer' ? 'page' : undefined}>
         <svg viewBox="0 0 32 32" width="18" height="18" aria-hidden="true">
