@@ -1,0 +1,19 @@
+name: Probe people API (temporary)
+
+on:
+  push:
+    paths:
+      - '.github/workflows/probe.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Match
+        run: |
+          for t in '工作壓力好大' '很怕人前講野'; do
+            echo "=== $t"
+            curl -sS -i -m 90 -w '\ntime_total=%{time_total}\n' --compressed -X POST https://mt-api.ohcasi.com/people/match \
+              -H 'Origin: https://mt.ohcasi.com' -H 'Content-Type: application/json' -H 'Accept-Encoding: gzip, deflate, br, zstd' \
+              -d "{\"text\":\"$t\"}" | grep -iv '^report-to\|^nel' || true
+          done
