@@ -281,7 +281,15 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     if (url.pathname === '/health' && request.method === 'GET') return json(await health(env), 200, headers);
     if (url.pathname.startsWith('/carer/')) return handleCarer(request, url, env, ctx, headers);
-    if (url.pathname.startsWith('/people/')) return handlePeople(request, url, env, ctx, headers, complete, json);
+    if (url.pathname.startsWith('/people/')) {
+      // An uncaught exception would reach the browser without CORS headers ("Failed to fetch"); report it as JSON instead.
+      try {
+        return await handlePeople(request, url, env, ctx, headers, complete, json);
+      } catch (err) {
+        console.error(err);
+        return json({ error: 'worker exception', detail: String(err).slice(0, 300) }, 500, headers);
+      }
+    }
     if (url.pathname.startsWith('/share/')) return handleShare(request, url, env, headers);
     if (url.pathname !== '/explain') return json({ error: 'not found' }, 404, headers);
     if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405, headers);
