@@ -644,27 +644,35 @@ body {
   cursor: pointer;
 }
 
-/* ---- app switcher tabs ---- */
+/* ---- app switcher tabs: always a single row ---- */
 .app-tabs {
   display: flex;
-  align-self: center;
-  gap: 4px;
-  padding: 4px;
+  flex-wrap: nowrap;
+  align-self: stretch;
+  gap: 2px;
+  padding: 3px;
   margin-top: 4px;
   border-radius: 999px;
   background: var(--accent-soft);
 }
 
 .app-tab {
+  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
   border-radius: 999px;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
   text-decoration: none;
   transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.app-tab svg {
+  display: none;
 }
 
 .app-tab.active {
@@ -674,29 +682,21 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-/* Four tabs: tighten on phones so they stay on one row. */
-@media (max-width: 480px) {
-  .app-tabs {
-    gap: 2px;
-    padding: 3px;
-    max-width: 100%;
-  }
+.app-tab.active svg {
+  display: inline;
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
 
+@media (max-width: 360px) {
   .app-tab {
-    padding: 7px 9px;
-    gap: 4px;
-    font-size: 0.82rem;
-    white-space: nowrap;
-  }
-
-  .app-tab svg {
-    display: none;
+    font-size: 0.76rem;
+    padding: 8px 2px;
   }
 
   .app-tab.active svg {
-    display: inline;
-    width: 14px;
-    height: 14px;
+    display: none;
   }
 }
 
@@ -1178,4 +1178,139 @@ body {
   padding: 18px;
   color: var(--muted);
   text-align: center;
+}
+
+.people-ask {
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.people-ask-label {
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.people-input {
+  width: 100%;
+  padding: 12px 14px;
+  resize: none;
+  border-radius: 14px;
+  border: 1px solid var(--divider);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.6;
+}
+
+.people-input:focus,
+.people-search:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.people-ask-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.people-counter {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.people-go {
+  padding: 10px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-deep);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.people-go:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.people-error {
+  margin: 0 6px 14px;
+  color: var(--accent-deep);
+}
+
+.people-result {
+  padding: 18px 18px 20px;
+  margin-bottom: 14px;
+}
+
+.people-name {
+  margin: 4px 0 2px;
+  font-family: var(--serif);
+  font-size: 1.35rem;
+}
+
+.people-meta {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.people-speech {
+  margin: 14px 0 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  line-height: 1.8;
+}
+
+.people-speech p {
+  margin: 0 0 10px;
+}
+
+.people-speech p:last-child {
+  margin-bottom: 0;
+}
+
+.people-crisis {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.people-history,
+.people-note a {
+  color: var(--accent-deep);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.people-history {
+  display: inline-block;
+  margin-top: 6px;
+}
+
+.people-note a {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.85rem;
+}
+
+.people-browse {
+  margin-bottom: 8px;
+}
+
+.people-browse summary {
+  padding: 10px 6px;
+  color: var(--accent-deep);
+  font-weight: 600;
+  cursor: pointer;
 }

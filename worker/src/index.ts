@@ -2,6 +2,7 @@
 // explanation via OpenRouter. The API key lives only here, as a secret.
 import data from '../../src/data/quotes.json';
 import { CARER_PROMPT_VERSION, explainCarer, findServices, lookupCarerQuote } from './carer';
+import { handlePeople } from './people';
 import { handleShare } from './share';
 
 interface Env {
@@ -84,7 +85,7 @@ function json(body: unknown, status: number, headers: HeadersInit): Response {
   });
 }
 
-async function complete(messages: { role: string; content: string }[], env: Env): Promise<string> {
+async function complete(messages: { role: string; content: string }[], env: Env, maxTokens = 800): Promise<string> {
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -96,7 +97,7 @@ async function complete(messages: { role: string; content: string }[], env: Env)
     body: JSON.stringify({
       model: env.MODEL,
       messages,
-      max_tokens: 800,
+      max_tokens: maxTokens,
       temperature: 0.7,
       // Reasoning models spend the token budget on hidden thinking and may return
       // content: null. This task does not need it.
@@ -280,6 +281,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     if (url.pathname === '/health' && request.method === 'GET') return json(await health(env), 200, headers);
     if (url.pathname.startsWith('/carer/')) return handleCarer(request, url, env, ctx, headers);
+    if (url.pathname.startsWith('/people/')) return handlePeople(request, url, env, ctx, headers, complete, json);
     if (url.pathname.startsWith('/share/')) return handleShare(request, url, env, headers);
     if (url.pathname !== '/explain') return json({ error: 'not found' }, 404, headers);
     if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405, headers);

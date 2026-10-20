@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppTabs from '../AppTabs';
+import { fetchMatch, MAX_CHARS, type MatchResult } from './api';
 import raw from './people.json';
 
 interface Person {
@@ -34,6 +35,9 @@ const fields = Array.from(new Set(people.map(mainField)))
 const year = (y: number) => (y < 0 ? `公元前${-y}` : `${y}`);
 const lifespan = (p: Person) => `${year(p.b)} – ${year(p.d)}`;
 
+const wikiUrl = (p: Person) => `https://zh.wikipedia.org/w/index.php?search=${encodeURIComponent(p.zh)}`;
+const clip = (t: string) => Array.from(t).slice(0, MAX_CHARS).join('');
+
 function usePeopleTheme() {
   useEffect(() => {
     document.documentElement.setAttribute('data-app', 'people');
@@ -47,6 +51,24 @@ export default function PeoplePage() {
   const [era, setEra] = useState('all');
   const [field, setField] = useState('all');
   const [openId, setOpenId] = useState<number | null>(null);
+  const [text, setText] = useState('');
+  const [phase, setPhase] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [result, setResult] = useState<MatchResult | null>(null);
+  const length = Array.from(text).length;
+  const matched = result ? people.find((p) => p.id === result.id) : undefined;
+
+  const ask = async () => {
+    const t = text.trim();
+    if (Array.from(t).length < 2 || phase === 'loading') return;
+    setPhase('loading');
+    try {
+      setResult(await fetchMatch(t));
+      setPhase('done');
+    } catch (err) {
+      console.error(err);
+      setPhase('error');
+    }
+  };
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -75,39 +97,102 @@ export default function PeoplePage() {
       <AppTabs active="people" />
       <header className="brand people-brand">
         <h1>古人</h1>
-        <p className="tagline">一千位已離世的人物，由公元前三千年到今天。</p>
+        <p className="tagline">講出你的處境，讓一位經歷相近的古人同你傾兩句。</p>
       </header>
 
-      <div className="people-tools">
-        <input
-          type="search"
-          className="people-search"
-          placeholder="搜尋名字、地區、領域…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="搜尋"
+      <section className="card people-ask" aria-label="問古人">
+        <label htmlFor="people-input" className="people-ask-label">
+          簡單講講你而家面對緊啲咩
+        </label>
+        <textarea
+          id="people-input"
+          className="people-input"
+          rows={3}
+          value={text}
+          placeholder="例如：工作壓力好大，好想放棄"
+          onChange={(e) => setText(clip(e.target.value))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              void ask();
+            }
+          }}
         />
-        <div className="people-chips" role="group" aria-label="年代">
-          {ERAS.map((e) => (
-            <button key={e.id} type="button" className={`chip ${era === e.id ? 'on' : ''}`} onClick={() => setEra(e.id)}>
-              {e.label}
-            </button>
-          ))}
-        </div>
-        <div className="people-row">
-          <select className="people-select" value={field} onChange={(e) => setField(e.target.value)} aria-label="領域">
-            <option value="all">所有領域</option>
-            {fields.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="chip on" onClick={surprise}>
-            隨機一位
+        <div className="people-ask-foot">
+          <span className="people-counter">
+            {length} / {MAX_CHARS}
+          </span>
+          <button type="button" className="people-go" onClick={() => void ask()} disabled={length < 2 || phase === 'loading'}>
+            {phase === 'loading' ? '搵緊古人…' : '問古人'}
           </button>
         </div>
-      </div>
+      </section>
+
+      {phase === 'error' && <p className="people-error">暫時搵唔到古人，遲啲再試。</p>}
+      {phase === 'done' && result && matched && (
+        <article className="card people-result" key={result.id + result.message.length}>
+          {result.situation && (
+            <p className="wit-setup">
+              <span className="wit-setup-label">你的處境</span>
+              {result.situation}
+            </p>
+          )}
+          <h2 className="people-name">
+            {matched.zh} <span className="people-en">{matched.en}</span>
+          </h2>
+          <p className="people-meta">
+            {lifespan(matched)}・{matched.region}・{matched.field}
+          </p>
+          <p className="people-meta">{matched.note}</p>
+          <div className="people-speech" aria-label={`${matched.zh}對你說`}>
+            <p className="wit-setup-label">{matched.zh}對你說</p>
+            {result.message.split(/\n+/).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </div>
+          {result.crisis && (
+            <p className="people-crisis">
+              如果你有傷害自己的念頭，請即致電撒瑪利亞防止自殺會 2389 2222，或生命熱線 2382 0000；情況緊急請打 999。
+            </p>
+          )}
+          <a className="people-history" href={wikiUrl(matched)} target="_blank" rel="noopener noreferrer">
+            睇{matched.zh}嘅生平 ↗
+          </a>
+        </article>
+      )}
+
+      <details className="people-browse">
+        <summary>瀏覽全部 1000 位古人</summary>
+        <div className="people-tools">
+          <input
+            type="search"
+            className="people-search"
+            placeholder="搜尋名字、地區、領域…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="搜尋"
+          />
+          <div className="people-chips" role="group" aria-label="年代">
+            {ERAS.map((e) => (
+              <button key={e.id} type="button" className={`chip ${era === e.id ? 'on' : ''}`} onClick={() => setEra(e.id)}>
+                {e.label}
+              </button>
+            ))}
+          </div>
+          <div className="people-row">
+            <select className="people-select" value={field} onChange={(e) => setField(e.target.value)} aria-label="領域">
+              <option value="all">所有領域</option>
+              {fields.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+            <button type="button" className="chip on" onClick={surprise}>
+              隨機一位
+            </button>
+          </div>
+        </div>
 
       <p className="people-count">{shown.length} 位</p>
       <section className="card list-card" aria-label="人物">
@@ -124,7 +209,14 @@ export default function PeoplePage() {
                     <span className="situation-need">
                       {lifespan(p)}・{p.region}・{p.field}
                     </span>
-                    {open && <span className="people-note">{p.note}</span>}
+                    {open && (
+                      <span className="people-note">
+                        {p.note}
+                        <a href={wikiUrl(p)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                          生平 ↗
+                        </a>
+                      </span>
+                    )}
                   </span>
                 </button>
               </li>
@@ -133,7 +225,8 @@ export default function PeoplePage() {
           {shown.length === 0 && <li className="people-empty">搵唔到，試吓其他字眼。</li>}
         </ul>
       </section>
-      <p className="footnote">資料由人手整理，未逐項核對；早期年份為約數。</p>
+      </details>
+      <p className="footnote">古人嘅話由 AI 根據史實撰寫，並非真實言論；人物資料未逐項核對，早期年份為約數。</p>
     </main>
   );
 }
