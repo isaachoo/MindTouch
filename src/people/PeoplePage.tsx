@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import AppTabs from '../AppTabs';
 import { fetchMatch, MAX_CHARS, type MatchResult } from './api';
 import raw from './people.json';
+import { usePortrait } from './portrait';
 
 interface Person {
   id: number;
@@ -55,12 +56,15 @@ export default function PeoplePage() {
   const [phase, setPhase] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [result, setResult] = useState<MatchResult | null>(null);
   const [errorInfo, setErrorInfo] = useState('');
+  const [asked, setAsked] = useState('');
   const length = Array.from(text).length;
   const matched = result ? people.find((p) => p.id === result.id) : undefined;
 
   const ask = async () => {
     const t = text.trim();
     if (Array.from(t).length < 2 || phase === 'loading') return;
+    setAsked(t);
+    setResult(null);
     setPhase('loading');
     try {
       setResult(await fetchMatch(t));
@@ -130,42 +134,29 @@ export default function PeoplePage() {
         </div>
       </section>
 
-      {phase === 'error' && (
-        <p className="people-error">
-          暫時搵唔到古人，遲啲再試。
-          <small className="people-error-detail">{errorInfo}</small>
-        </p>
-      )}
-      {phase === 'done' && result && matched && (
-        <article className="card people-result" key={result.id + result.message.length}>
-          {result.situation && (
-            <p className="wit-setup">
-              <span className="wit-setup-label">你的處境</span>
-              {result.situation}
-            </p>
-          )}
-          <h2 className="people-name">
-            {matched.zh} <span className="people-en">{matched.en}</span>
-          </h2>
-          <p className="people-meta">
-            {lifespan(matched)}・{matched.region}・{matched.field}
-          </p>
-          <p className="people-meta">{matched.note}</p>
-          <div className="people-speech" aria-label={`${matched.zh}對你說`}>
-            <p className="wit-setup-label">{matched.zh}對你說</p>
-            {result.message.split(/\n+/).map((para, i) => (
-              <p key={i}>{para}</p>
-            ))}
+      {phase !== 'idle' && asked && (
+        <section className="card people-chat" aria-label="對話" aria-live="polite">
+          <div className="bubble-row me">
+            <p className="bubble me">{asked}</p>
           </div>
-          {result.crisis && (
-            <p className="people-crisis">
-              如果你有傷害自己的念頭，請即致電撒瑪利亞防止自殺會 2389 2222，或生命熱線 2382 0000；情況緊急請打 999。
+          {phase === 'loading' && (
+            <div className="bubble-row them">
+              <Avatar />
+              <p className="bubble them typing" aria-label="古人諗緊點回覆">
+                <span />
+                <span />
+                <span />
+              </p>
+            </div>
+          )}
+          {phase === 'error' && (
+            <p className="people-error">
+              暫時搵唔到古人，遲啲再試。
+              <small className="people-error-detail">{errorInfo}</small>
             </p>
           )}
-          <a className="people-history" href={wikiUrl(matched)} target="_blank" rel="noopener noreferrer">
-            睇{matched.zh}嘅生平 ↗
-          </a>
-        </article>
+          {phase === 'done' && result && matched && <Reply result={result} person={matched} />}
+        </section>
       )}
 
       <details className="people-browse">
@@ -235,5 +226,49 @@ export default function PeoplePage() {
       </details>
       <p className="footnote">古人嘅話由 AI 根據史實撰寫，並非真實言論；人物資料未逐項核對，早期年份為約數。</p>
     </main>
+  );
+}
+
+function Avatar({ person }: { person?: Person }) {
+  const portrait = usePortrait(person?.en, person?.zh);
+  const initial = person ? Array.from(person.zh)[0] : '古';
+  return (
+    <span className="avatar" aria-hidden="true">
+      {portrait ? <img src={portrait.src} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span>{initial}</span>}
+    </span>
+  );
+}
+
+function Reply({ result, person }: { result: MatchResult; person: Person }) {
+  const paragraphs = result.message.split(/\n+/).filter((p) => p.trim());
+  return (
+    <>
+      {result.situation && <p className="chat-note">你的處境：{result.situation}</p>}
+      <div className="bubble-row them">
+        <Avatar person={person} />
+        <div className="bubble-stack">
+          <p className="chat-name">
+            {person.zh} <span className="people-en">{person.en}</span>
+          </p>
+          <p className="chat-meta">
+            {lifespan(person)}・{person.region}・{person.field}
+          </p>
+          {paragraphs.map((para, i) => (
+            <p key={i} className="bubble them" style={{ animationDelay: `${i * 0.25}s` }}>
+              {para}
+            </p>
+          ))}
+        </div>
+      </div>
+      {result.crisis && (
+        <p className="people-crisis">
+          如果你有傷害自己的念頭，請即致電撒瑪利亞防止自殺會 2389 2222，或生命熱線 2382 0000；情況緊急請打 999。
+        </p>
+      )}
+      <a className="people-history" href={wikiUrl(person)} target="_blank" rel="noopener noreferrer">
+        睇{person.zh}嘅生平 ↗
+      </a>
+      <p className="chat-credit">頭像來自維基百科；對話由 AI 撰寫，並非真實言論。</p>
+    </>
   );
 }
