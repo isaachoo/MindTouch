@@ -22,7 +22,7 @@ interface Person {
   note: string;
 }
 
-const PEOPLE_PROMPT_VERSION = 'v5';
+const PEOPLE_PROMPT_VERSION = 'v6';
 export const MAX_CHARS = 30;
 
 const roster = people as Person[];
