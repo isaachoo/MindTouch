@@ -9,19 +9,24 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Preflight
+      - run: npm i playwright@1.56.1 && npx playwright install --with-deps chromium
+      - name: Browser test
         run: |
-          curl -sS -i -m 30 -X OPTIONS https://mt-api.ohcasi.com/people/match \
-            -H 'Origin: https://mt.ohcasi.com' \
-            -H 'Access-Control-Request-Method: POST' \
-            -H 'Access-Control-Request-Headers: content-type' || true
-      - name: Match
-        run: |
-          curl -sS -i -m 90 -w '\ntime_total=%{time_total}\n' -X POST https://mt-api.ohcasi.com/people/match \
-            -H 'Origin: https://mt.ohcasi.com' -H 'Content-Type: application/json' \
-            -d '{"text":"很怕人前講野"}' || true
-      - name: Explain (control)
-        run: |
-          curl -sS -i -m 60 -X POST https://mt-api.ohcasi.com/explain \
-            -H 'Origin: https://mt.ohcasi.com' -H 'Content-Type: application/json' \
-            -d '{"quoteId":"x","categoryId":"C01"}' | head -20 || true
+          cat > t.cjs <<'JS'
+          const { chromium } = require('playwright');
+          (async () => {
+            const b = await chromium.launch();
+            const p = await b.newPage({ viewport: { width: 390, height: 900 } });
+            p.on('console', m => console.log('console', m.type(), m.text()));
+            p.on('requestfailed', r => console.log('requestfailed', r.method(), r.url(), r.failure()?.errorText));
+            p.on('response', r => { if (r.url().includes('mt-api')) console.log('response', r.status(), r.request().method(), r.url(), JSON.stringify(r.headers())); });
+            await p.goto('https://mt.ohcasi.com/#/people');
+            await p.waitForSelector('#people-input');
+            await p.fill('#people-input', '很怕人前講野');
+            await p.click('.people-go');
+            await p.waitForSelector('.people-result, .people-error', { timeout: 90000 });
+            console.log('RESULT', await p.textContent('.people-result, .people-error'));
+            await b.close();
+          })();
+          JS
+          node t.cjs
