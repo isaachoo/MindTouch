@@ -16,7 +16,10 @@ export async function fetchMatch(text: string, signal?: AbortSignal): Promise<Ma
     body: JSON.stringify({ text }),
     signal,
   });
-  if (!res.ok) throw new Error(`match failed: ${res.status}`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
+    throw new Error(`${res.status} ${body.error ?? ''} ${body.detail ?? ''}`.trim());
+  }
   const body = (await res.json()) as Partial<MatchResult>;
   if (typeof body.id !== 'number' || !body.message) throw new Error('empty match');
   return { situation: body.situation ?? '', id: body.id, message: body.message, crisis: body.crisis === true };

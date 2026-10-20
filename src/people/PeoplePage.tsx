@@ -54,6 +54,7 @@ export default function PeoplePage() {
   const [text, setText] = useState('');
   const [phase, setPhase] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [result, setResult] = useState<MatchResult | null>(null);
+  const [errorInfo, setErrorInfo] = useState('');
   const length = Array.from(text).length;
   const matched = result ? people.find((p) => p.id === result.id) : undefined;
 
@@ -66,6 +67,7 @@ export default function PeoplePage() {
       setPhase('done');
     } catch (err) {
       console.error(err);
+      setErrorInfo(err instanceof Error ? err.message.slice(0, 160) : String(err));
       setPhase('error');
     }
   };
@@ -128,7 +130,12 @@ export default function PeoplePage() {
         </div>
       </section>
 
-      {phase === 'error' && <p className="people-error">暫時搵唔到古人，遲啲再試。</p>}
+      {phase === 'error' && (
+        <p className="people-error">
+          暫時搵唔到古人，遲啲再試。
+          <small className="people-error-detail">{errorInfo}</small>
+        </p>
+      )}
       {phase === 'done' && result && matched && (
         <article className="card people-result" key={result.id + result.message.length}>
           {result.situation && (
