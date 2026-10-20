@@ -59,6 +59,7 @@ export default function PeoplePage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const reset = () => {
+    setSeen([]);
     setText('');
     setAsked('');
     setResult(null);
@@ -67,20 +68,35 @@ export default function PeoplePage() {
     inputRef.current?.focus();
   };
 
-  const ask = async () => {
-    const t = text.trim();
-    if (Array.from(t).length < 2 || phase === 'loading') return;
+  // Seen figures for the current situation, so 「同另一位古人傾」 never repeats one.
+  const [seen, setSeen] = useState<number[]>([]);
+
+  const run = async (t: string, exclude: number[]) => {
     setAsked(t);
     setResult(null);
     setPhase('loading');
     try {
-      setResult(await fetchMatch(t));
+      const r = await fetchMatch(t, exclude);
+      setSeen([...exclude, r.id]);
+      setResult(r);
       setPhase('done');
     } catch (err) {
       console.error(err);
       setErrorInfo(err instanceof Error ? err.message.slice(0, 240) : String(err));
       setPhase('error');
     }
+  };
+
+  const ask = () => {
+    const t = text.trim();
+    if (Array.from(t).length < 2 || phase === 'loading') return;
+    void run(t, []);
+  };
+
+  const another = () => {
+    if (phase === 'loading' || !asked) return;
+    void run(asked, seen);
+    document.querySelector('.people-chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
@@ -141,7 +157,7 @@ export default function PeoplePage() {
               <small className="people-error-detail">{errorInfo}</small>
             </p>
           )}
-          {phase === 'done' && result && matched && <Reply key={`${result.id}-${asked}`} asked={asked} result={result} person={matched} onReset={reset} />}
+          {phase === 'done' && result && matched && <Reply key={`${result.id}-${asked}`} asked={asked} result={result} person={matched} onReset={reset} onAnother={another} />}
         </section>
       )}
 
@@ -199,9 +215,10 @@ interface ReplyProps {
   result: MatchResult;
   person: Person;
   onReset: () => void;
+  onAnother: () => void;
 }
 
-function Reply({ asked, result, person, onReset }: ReplyProps) {
+function Reply({ asked, result, person, onReset, onAnother }: ReplyProps) {
   const [question, setQuestion] = useState('');
   const [sent, setSent] = useState('');
   const [state, setState] = useState<'ask' | 'loading' | 'done' | 'error'>('ask');
@@ -254,9 +271,6 @@ function Reply({ asked, result, person, onReset }: ReplyProps) {
           <p className="chat-note">
             {person.zh}已回到{era(person)}。
           </p>
-          <button type="button" className="people-go chat-again" onClick={onReset}>
-            再問另一位古人
-          </button>
         </>
       )}
       {(state === 'ask' || state === 'error') && (
@@ -288,6 +302,19 @@ function Reply({ asked, result, person, onReset }: ReplyProps) {
               送出
             </button>
           </div>
+        </div>
+      )}
+
+      {state !== 'loading' && (
+        <div className="chat-actions">
+          <button type="button" className="people-go" onClick={onAnother}>
+            同另一位古人傾同一件事
+          </button>
+          {state === 'done' && (
+            <button type="button" className="people-go secondary" onClick={onReset}>
+              講另一件事
+            </button>
+          )}
         </div>
       )}
 

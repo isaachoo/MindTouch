@@ -198,7 +198,7 @@ export async function handlePeople<E extends PeopleEnv>(
     return json({ error: 'not found' }, 404, headers);
   }
 
-  let payload: { text?: unknown; id?: unknown; reply?: unknown; question?: unknown };
+  let payload: { text?: unknown; id?: unknown; reply?: unknown; question?: unknown; exclude?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -209,10 +209,27 @@ export async function handlePeople<E extends PeopleEnv>(
   if (!env.OPENROUTER_API_KEY) return json({ error: 'server not configured' }, 503, headers);
 
   if (url.pathname === '/people/match') {
-    return start(await sha(text), [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `使用者說：「${text}」` },
-    ], parseResult);
+    // exclude: figures already shown for this situation ("talk with another 古人").
+    const exclude = (Array.isArray(payload.exclude) ? payload.exclude : [])
+      .map(Number)
+      .filter((n) => byId.has(n))
+      .slice(0, 30)
+      .sort((a, b) => a - b);
+    const skip = new Set(exclude);
+    const avoid = exclude.length
+      ? `\n這次不可以選以下已經出現過的古人（編號）：${exclude.join('、')}。請選另一位，角度可以不同。`
+      : '';
+    return start(
+      await sha(exclude.length ? `${text}|x${exclude.join(',')}` : text),
+      [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `使用者說：「${text}」${avoid}` },
+      ],
+      (raw) => {
+        const r = parseResult(raw);
+        return r && !skip.has(r.id) ? r : null;
+      },
+    );
   }
 
   // /people/followup: one last question to the figure who answered the first one.

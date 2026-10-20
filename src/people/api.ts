@@ -54,8 +54,8 @@ async function startAndPoll(path: string, payload: unknown): Promise<Record<stri
   throw new Error('timed out after 60s');
 }
 
-export async function fetchMatch(text: string): Promise<MatchResult> {
-  const body = await startAndPoll('/people/match', { text });
+export async function fetchMatch(text: string, exclude: number[] = []): Promise<MatchResult> {
+  const body = await startAndPoll('/people/match', { text, exclude });
   if (typeof body.id !== 'number' || typeof body.message !== 'string' || !body.message) throw new Error('empty match');
   return {
     situation: typeof body.situation === 'string' ? body.situation : '',

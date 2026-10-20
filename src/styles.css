@@ -1388,6 +1388,16 @@ body {
   outline-offset: 1px;
 }
 
-.chat-again {
-  align-self: center;
+.chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.people-go.secondary {
+  background: var(--card);
+  color: var(--accent-deep);
+  border: 1px solid var(--accent);
 }
