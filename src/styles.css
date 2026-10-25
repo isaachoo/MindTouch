@@ -1401,3 +1401,76 @@ body {
   color: var(--accent-deep);
   border: 1px solid var(--accent);
 }
+
+/* ---- install guide sheet (iPhone) ---- */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(40, 25, 20, 0.45);
+  padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+}
+
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  padding: 22px 22px 18px;
+  border-radius: 24px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  animation: rise 0.3s ease both;
+}
+
+.sheet-title {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.25rem;
+  margin: 0 0 6px;
+}
+
+.sheet-intro,
+.sheet-done {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.sheet-steps {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.sheet-steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  font-size: 0.98rem;
+}
+
+.sheet-step-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--accent-deep);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sheet-close {
+  width: 100%;
+  padding: 12px;
+}
