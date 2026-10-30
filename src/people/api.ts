@@ -54,8 +54,9 @@ async function startAndPoll(path: string, payload: unknown): Promise<Record<stri
   throw new Error('timed out after 60s');
 }
 
-export async function fetchMatch(text: string, exclude: number[] = []): Promise<MatchResult> {
-  const body = await startAndPoll('/people/match', { text, exclude });
+// more: what the user said after the first message (follow-up questions to earlier 古人).
+export async function fetchMatch(text: string, exclude: number[] = [], more: string[] = []): Promise<MatchResult> {
+  const body = await startAndPoll('/people/match', { text, exclude, more });
   if (typeof body.id !== 'number' || typeof body.message !== 'string' || !body.message) throw new Error('empty match');
   return {
     situation: typeof body.situation === 'string' ? body.situation : '',
@@ -65,8 +66,8 @@ export async function fetchMatch(text: string, exclude: number[] = []): Promise<
   };
 }
 
-export async function fetchFollowup(id: number, text: string, reply: string, question: string): Promise<FollowupResult> {
-  const body = await startAndPoll('/people/followup', { id, text, reply, question });
+export async function fetchFollowup(id: number, text: string, more: string[], reply: string, question: string): Promise<FollowupResult> {
+  const body = await startAndPoll('/people/followup', { id, text, more, reply, question });
   if (typeof body.message !== 'string' || !body.message) throw new Error('empty reply');
   return { message: body.message, crisis: body.crisis === true };
 }

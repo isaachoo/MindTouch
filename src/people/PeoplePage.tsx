@@ -54,6 +54,8 @@ export default function PeoplePage() {
   const [result, setResult] = useState<MatchResult | null>(null);
   const [errorInfo, setErrorInfo] = useState('');
   const [asked, setAsked] = useState('');
+  // Follow-up questions typed to earlier 古人 for this situation; the next 古人 hears them too.
+  const [more, setMore] = useState<string[]>([]);
   const length = Array.from(text).length;
   const matched = result ? people.find((p) => p.id === result.id) : undefined;
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -62,6 +64,7 @@ export default function PeoplePage() {
     setSeen([]);
     setText('');
     setAsked('');
+    setMore([]);
     setResult(null);
     setPhase('idle');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -71,12 +74,13 @@ export default function PeoplePage() {
   // Seen figures for the current situation, so 「同另一位古人傾」 never repeats one.
   const [seen, setSeen] = useState<number[]>([]);
 
-  const run = async (t: string, exclude: number[]) => {
+  const run = async (t: string, exclude: number[], extra: string[]) => {
     setAsked(t);
+    setMore(extra);
     setResult(null);
     setPhase('loading');
     try {
-      const r = await fetchMatch(t, exclude);
+      const r = await fetchMatch(t, exclude, extra);
       setSeen([...exclude, r.id]);
       setResult(r);
       setPhase('done');
@@ -90,12 +94,12 @@ export default function PeoplePage() {
   const ask = () => {
     const t = text.trim();
     if (Array.from(t).length < 2 || phase === 'loading') return;
-    void run(t, []);
+    void run(t, [], []);
   };
 
-  const another = () => {
+  const another = (followup: string) => {
     if (phase === 'loading' || !asked) return;
-    void run(asked, seen);
+    void run(asked, seen, followup ? [...more, followup].slice(-3) : more);
     document.querySelector('.people-chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -141,6 +145,11 @@ export default function PeoplePage() {
           <div className="bubble-row me">
             <p className="bubble me">{asked}</p>
           </div>
+          {more.map((m, i) => (
+            <div key={i} className="bubble-row me">
+              <p className="bubble me">{m}</p>
+            </div>
+          ))}
           {phase === 'loading' && (
             <div className="bubble-row them">
               <Avatar />
@@ -157,7 +166,7 @@ export default function PeoplePage() {
               <small className="people-error-detail">{errorInfo}</small>
             </p>
           )}
-          {phase === 'done' && result && matched && <Reply key={`${result.id}-${asked}`} asked={asked} result={result} person={matched} onReset={reset} onAnother={another} />}
+          {phase === 'done' && result && matched && <Reply key={`${result.id}-${asked}`} asked={asked} more={more} result={result} person={matched} onReset={reset} onAnother={another} />}
         </section>
       )}
 
@@ -212,13 +221,14 @@ function Crisis() {
 
 interface ReplyProps {
   asked: string;
+  more: string[];
   result: MatchResult;
   person: Person;
   onReset: () => void;
-  onAnother: () => void;
+  onAnother: (followup: string) => void;
 }
 
-function Reply({ asked, result, person, onReset, onAnother }: ReplyProps) {
+function Reply({ asked, more, result, person, onReset, onAnother }: ReplyProps) {
   const [question, setQuestion] = useState('');
   const [sent, setSent] = useState('');
   const [state, setState] = useState<'ask' | 'loading' | 'done' | 'error'>('ask');
@@ -232,7 +242,7 @@ function Reply({ asked, result, person, onReset, onAnother }: ReplyProps) {
     setSent(q);
     setState('loading');
     try {
-      setAnswer(await fetchFollowup(person.id, asked, result.message, q));
+      setAnswer(await fetchFollowup(person.id, asked, more, result.message, q));
       setState('done');
     } catch (err) {
       console.error(err);
@@ -307,7 +317,7 @@ function Reply({ asked, result, person, onReset, onAnother }: ReplyProps) {
 
       {state !== 'loading' && (
         <div className="chat-actions">
-          <button type="button" className="people-go" onClick={onAnother}>
+          <button type="button" className="people-go" onClick={() => onAnother(sent)}>
             同另一位古人傾同一件事
           </button>
           {state === 'done' && (

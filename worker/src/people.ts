@@ -81,10 +81,10 @@ function parseResult(raw: string): MatchResult | null {
 
 const year = (y: number) => (y < 0 ? `公元前${-y}年` : `${y}年`);
 
-function followupPrompt(p: Person, text: string, reply: string): string {
+function followupPrompt(p: Person, text: string, more: string[], reply: string): string {
   return `你是${p.zh}（${p.en}，${year(p.b)}至${year(p.d)}，${p.region}，${p.field}：${p.note}）。你隔着時間與一位使用者對話。
 
-使用者先前說：「${text}」
+使用者先前說：「${text}」${more.map((m) => `\n使用者其後補充：「${m}」`).join('')}
 你先前回覆：
 ${reply}
 
@@ -198,7 +198,7 @@ export async function handlePeople<E extends PeopleEnv>(
     return json({ error: 'not found' }, 404, headers);
   }
 
-  let payload: { text?: unknown; id?: unknown; reply?: unknown; question?: unknown; exclude?: unknown };
+  let payload: { text?: unknown; more?: unknown; id?: unknown; reply?: unknown; question?: unknown; exclude?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -207,6 +207,12 @@ export async function handlePeople<E extends PeopleEnv>(
   const text = clean(payload.text, MAX_CHARS);
   if (chars(text) < 2 || chars(text) > MAX_CHARS) return json({ error: `text must be 2-${MAX_CHARS} characters` }, 400, headers);
   if (!env.OPENROUTER_API_KEY) return json({ error: 'server not configured' }, 503, headers);
+  // more: what the user said to earlier 古人 after the first message, so the next one hears all of it.
+  const more = (Array.isArray(payload.more) ? payload.more : [])
+    .map((m) => clean(m, MAX_CHARS))
+    .filter((m) => chars(m) >= 1 && chars(m) <= MAX_CHARS)
+    .slice(-3);
+  const moreKey = more.length ? `|m${more.join('|')}` : '';
 
   if (url.pathname === '/people/match') {
     // exclude: figures already shown for this situation ("talk with another 古人").
@@ -219,11 +225,14 @@ export async function handlePeople<E extends PeopleEnv>(
     const avoid = exclude.length
       ? `\n這次不可以選以下已經出現過的古人（編號）：${exclude.join('、')}。請選另一位，角度可以不同。`
       : '';
+    const added = more.length
+      ? `${more.map((m) => `\n使用者其後補充：「${m}」`).join('')}\n請把以上全部說話一併考慮。`
+      : '';
     return start(
-      await sha(exclude.length ? `${text}|x${exclude.join(',')}` : text),
+      await sha(`${exclude.length ? `${text}|x${exclude.join(',')}` : text}${moreKey}`),
       [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `使用者說：「${text}」${avoid}` },
+        { role: 'user', content: `使用者說：「${text}」${added}${avoid}` },
       ],
       (raw) => {
         const r = parseResult(raw);
@@ -239,8 +248,8 @@ export async function handlePeople<E extends PeopleEnv>(
   if (!person) return json({ error: 'unknown person' }, 400, headers);
   if (chars(question) < 1 || chars(question) > MAX_CHARS) return json({ error: `question must be 1-${MAX_CHARS} characters` }, 400, headers);
   if (!reply) return json({ error: 'missing reply' }, 400, headers);
-  return start(await sha(`followup|${person.id}|${text}|${question}`), [
-    { role: 'system', content: followupPrompt(person, text, reply) },
+  return start(await sha(`followup|${person.id}|${text}${moreKey}|${question}`), [
+    { role: 'system', content: followupPrompt(person, text, more, reply) },
     { role: 'user', content: `使用者最後的問題：「${question}」` },
   ], parseFollowup);
 }
