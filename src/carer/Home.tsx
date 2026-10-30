@@ -1,5 +1,5 @@
 import Hotline from './Hotline';
-import { useInstall } from '../useInstall';
+import InstallButton from '../InstallButton';
 import AppTabs from '../AppTabs';
 
 interface Props {
@@ -8,8 +8,6 @@ interface Props {
 }
 
 export default function Home({ onFeel, onHelp }: Props) {
-  const install = useInstall();
-
   return (
     <main className="screen home carer-home">
       <AppTabs active="carer" />
@@ -40,17 +38,7 @@ export default function Home({ onFeel, onHelp }: Props) {
 
       <Hotline />
 
-      {install.kind === 'prompt' && (
-        <button type="button" className="install" onClick={() => void install.install()}>
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          加到主畫面
-        </button>
-      )}
-      {install.kind === 'ios-hint' && (
-        <p className="install-hint">想加到主畫面？喺 Safari 㩒「分享」，再揀「加入主畫面」。</p>
-      )}
+      <InstallButton colloquial />
     </main>
   );
 }

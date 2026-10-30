@@ -2,6 +2,7 @@
 // explanation via OpenRouter. The API key lives only here, as a secret.
 import data from '../../src/data/quotes.json';
 import { CARER_PROMPT_VERSION, explainCarer, findServices, lookupCarerQuote } from './carer';
+import { handlePeople } from './people';
 import { handleShare } from './share';
 
 interface Env {
@@ -84,9 +85,11 @@ function json(body: unknown, status: number, headers: HeadersInit): Response {
   });
 }
 
-async function complete(messages: { role: string; content: string }[], env: Env): Promise<string> {
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+async function complete(messages: { role: string; content: string }[], env: Env, maxTokens = 800): Promise<string> {
+  const base = (env.OPENROUTER_BASE ?? 'https://openrouter.ai/api/v1').replace(/\/$/, '');
+  const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
+    signal: AbortSignal.timeout(55000),
     headers: {
       Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
@@ -96,7 +99,7 @@ async function complete(messages: { role: string; content: string }[], env: Env)
     body: JSON.stringify({
       model: env.MODEL,
       messages,
-      max_tokens: 800,
+      max_tokens: maxTokens,
       temperature: 0.7,
       // Reasoning models spend the token budget on hidden thinking and may return
       // content: null. This task does not need it.
@@ -280,6 +283,17 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     if (url.pathname === '/health' && request.method === 'GET') return json(await health(env), 200, headers);
     if (url.pathname.startsWith('/carer/')) return handleCarer(request, url, env, ctx, headers);
+    if (url.pathname.startsWith('/people/')) {
+      // An uncaught exception would reach the browser without CORS headers ("Failed to fetch"); report it as JSON instead.
+      // no-transform stops Cloudflare compressing the reply (zstd), which some proxies and browsers fail to decode.
+      const peopleHeaders = { ...headers, 'Cache-Control': 'no-store, no-transform' };
+      try {
+        return await handlePeople(request, url, env, ctx, peopleHeaders, complete, json);
+      } catch (err) {
+        console.error(err);
+        return json({ error: 'worker exception', detail: String(err).slice(0, 300) }, 500, peopleHeaders);
+      }
+    }
     if (url.pathname.startsWith('/share/')) return handleShare(request, url, env, headers);
     if (url.pathname !== '/explain') return json({ error: 'not found' }, 404, headers);
     if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405, headers);

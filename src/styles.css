@@ -644,27 +644,35 @@ body {
   cursor: pointer;
 }
 
-/* ---- app switcher tabs ---- */
+/* ---- app switcher tabs: always a single row ---- */
 .app-tabs {
   display: flex;
-  align-self: center;
-  gap: 4px;
-  padding: 4px;
+  flex-wrap: nowrap;
+  align-self: stretch;
+  gap: 2px;
+  padding: 3px;
   margin-top: 4px;
   border-radius: 999px;
   background: var(--accent-soft);
 }
 
 .app-tab {
+  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
   border-radius: 999px;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
   text-decoration: none;
   transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.app-tab svg {
+  display: none;
 }
 
 .app-tab.active {
@@ -674,29 +682,21 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-/* Four tabs: tighten on phones so they stay on one row. */
-@media (max-width: 480px) {
-  .app-tabs {
-    gap: 2px;
-    padding: 3px;
-    max-width: 100%;
-  }
+.app-tab.active svg {
+  display: inline;
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
 
+@media (max-width: 360px) {
   .app-tab {
-    padding: 7px 9px;
-    gap: 4px;
-    font-size: 0.82rem;
-    white-space: nowrap;
-  }
-
-  .app-tab svg {
-    display: none;
+    font-size: 0.76rem;
+    padding: 8px 2px;
   }
 
   .app-tab.active svg {
-    display: inline;
-    width: 14px;
-    height: 14px;
+    display: none;
   }
 }
 
@@ -1056,4 +1056,421 @@ body {
   .thinking-message {
     animation: none;
   }
+}
+
+/* ---- 古人: sage-green accent, applied while that page is open ---- */
+:root[data-app='people'] {
+  --bg: #f4f6ef;
+  --bg-glow-1: rgba(170, 200, 150, 0.45);
+  --bg-glow-2: rgba(210, 225, 190, 0.55);
+  --card: #fbfcf7;
+  --card-border: rgba(60, 90, 40, 0.1);
+  --text: #2f3a28;
+  --muted: #6f7f61;
+  --accent: #7ea06a;
+  --accent-deep: #5a7d47;
+  --accent-soft: #e4ecd9;
+  --divider: rgba(60, 90, 40, 0.14);
+  --shadow: 0 10px 30px rgba(60, 90, 40, 0.1), 0 1px 2px rgba(60, 90, 40, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-app='people']:not([data-theme='light']) {
+    --bg: #1a2016;
+    --bg-glow-1: rgba(110, 150, 90, 0.25);
+    --bg-glow-2: rgba(90, 130, 80, 0.18);
+    --card: #232b1e;
+    --card-border: rgba(210, 235, 190, 0.08);
+    --text: #ecf2e4;
+    --muted: #a6b799;
+    --accent: #8fb77a;
+    --accent-deep: #a9cf94;
+    --accent-soft: #2f3a28;
+    --divider: rgba(210, 235, 190, 0.1);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.people-brand {
+  padding: 14px 0 10px;
+}
+
+.people-brand h1 {
+  font-size: 1.6rem;
+}
+
+.people-en {
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+.people-ask {
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.people-ask-label {
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.people-input {
+  width: 100%;
+  padding: 12px 14px;
+  resize: none;
+  border-radius: 14px;
+  border: 1px solid var(--divider);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.6;
+}
+
+.people-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.people-ask-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.people-counter {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.people-go {
+  padding: 10px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-deep);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.people-go:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.people-error {
+  margin: 0 6px 14px;
+  color: var(--accent-deep);
+}
+
+.people-result {
+  padding: 18px 18px 20px;
+  margin-bottom: 14px;
+}
+
+.people-name {
+  margin: 4px 0 2px;
+  font-family: var(--serif);
+  font-size: 1.35rem;
+}
+
+.people-meta {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.people-speech {
+  margin: 14px 0 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  line-height: 1.8;
+}
+
+.people-speech p {
+  margin: 0 0 10px;
+}
+
+.people-speech p:last-child {
+  margin-bottom: 0;
+}
+
+.people-crisis {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.people-history {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--accent-deep);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.people-error-detail {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
+/* ---- 古人 chat ---- */
+.people-chat {
+  padding: 16px 14px 18px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bubble-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.bubble-row.me {
+  justify-content: flex-end;
+}
+
+.bubble {
+  margin: 0;
+  padding: 10px 14px;
+  max-width: 85%;
+  border-radius: 18px;
+  line-height: 1.7;
+  font-size: 0.95rem;
+  animation: bubble-in 0.35s ease both;
+}
+
+.bubble.me {
+  background: var(--accent-deep);
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+
+.bubble.them {
+  max-width: 100%;
+  background: var(--accent-soft);
+  color: var(--text);
+  border-top-left-radius: 6px;
+}
+
+.bubble-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.avatar {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.chat-name {
+  margin: 2px 0 0;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.chat-meta,
+.chat-note,
+.chat-credit {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.chat-note {
+  align-self: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+}
+
+.chat-credit {
+  font-size: 0.72rem;
+}
+
+.bubble.typing {
+  display: inline-flex;
+  gap: 5px;
+  padding: 14px 16px;
+  width: auto;
+}
+
+.bubble.typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: typing 1.2s infinite ease-in-out;
+}
+
+.bubble.typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.bubble.typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble,
+  .bubble.typing span {
+    animation: none;
+  }
+}
+
+.chat-reply {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--divider);
+}
+
+.chat-input {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--divider);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.chat-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.people-go.secondary {
+  background: var(--card);
+  color: var(--accent-deep);
+  border: 1px solid var(--accent);
+}
+
+/* ---- install guide sheet (iPhone) ---- */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(40, 25, 20, 0.45);
+  padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+}
+
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  padding: 22px 22px 18px;
+  border-radius: 24px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  animation: rise 0.3s ease both;
+}
+
+.sheet-title {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.25rem;
+  margin: 0 0 6px;
+}
+
+.sheet-intro,
+.sheet-done {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.sheet-steps {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.sheet-steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  font-size: 0.98rem;
+}
+
+.sheet-step-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--accent-deep);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sheet-close {
+  width: 100%;
+  padding: 12px;
 }
